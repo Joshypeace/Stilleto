@@ -12,7 +12,9 @@
 param(
     [string]$Exe = "$PSScriptRoot\..\out\build\vs2026\Stilleto_artefacts\Release\Stilleto.exe",
     [string]$Wav = "$PSScriptRoot\..\external\whisper.cpp\samples\jfk.wav",
-    [string]$Shots = ""
+    [string]$Shots = "",
+    [string]$Expect = "ask not what your country can do for you",   # regex the inserted text must match
+    [string]$Forbid = ""                                             # regex it must NOT match (e.g. fillers)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -105,12 +107,13 @@ $sw = [Diagnostics.Stopwatch]::StartNew()
 while ($sw.Elapsed.TotalSeconds -lt 30) {
     Start-Sleep -Milliseconds 250
     $text = [E2E]::EditorText($notepad)
-    if ($text -match "country") { break }
+    if ($text.Trim().Length -gt 0) { Start-Sleep -Milliseconds 400; $text = [E2E]::EditorText($notepad); break }
 }
 $elapsed = $sw.Elapsed.TotalSeconds
 Shot "e2e-completed"
-Check "transcript inserted into Notepad" ($text -match "ask not what your country can do for you") ("after {0:N1}s: '{1}'" -f $elapsed, $text)
-Check "inserted exactly once" (([regex]::Matches($text, "fellow Americans")).Count -eq 1)
+Check "transcript inserted into Notepad" ($text -match $Expect) ("after {0:N1}s: '{1}'" -f $elapsed, $text)
+Check "inserted exactly once" (([regex]::Matches($text, $Expect)).Count -eq 1)
+if ($Forbid) { Check "disfluencies removed" (-not ($text -match $Forbid)) "forbidden pattern: $Forbid" }
 Check "focus still on Notepad after insertion" ([E2E]::GetForegroundWindow() -eq $notepad)
 
 # 5. Log evidence of the real microphone capture and worker-thread transcription.

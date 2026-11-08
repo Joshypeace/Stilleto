@@ -29,7 +29,9 @@ void WhisperTranscriber::shutdown()
     }
     signalThreadShouldExit();
     wake.signal();
-    stopThread (10000);     // inference polls the cancel flag, so this returns promptly
+    // Inference polls the cancel flag and returns promptly; a model load cannot be interrupted, so
+    // wait for it rather than terminating a thread that may hold allocator or loader locks.
+    stopThread (-1);
 }
 
 void WhisperTranscriber::post (std::function<void()> fn)
@@ -216,7 +218,9 @@ WhisperTranscriber::Result WhisperTranscriber::process (Job& job)
         case WhisperEngine::Status::Ok:
             result.rawText = out.text;
             // Whisper's stock phrases on near-silence: only trusted when the speech was substantial.
-            if (isCommonHallucination (out.text) && analysis.voicedSeconds < 0.6)
+            // English only: the stock phrases are English, and short replies in other languages
+            // ("Da.", "Hai") must never be discarded.
+            if ((out.language.empty() || out.language == "en") && isCommonHallucination (out.text) && analysis.voicedSeconds < 0.6)
             {
                 result.status = Result::Status::NoSpeech;
                 result.error = "No speech was detected in the recording.";

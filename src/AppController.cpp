@@ -144,9 +144,11 @@ void AppController::shutdown()
     if (current.state == DictationState::Recording)
         recorder.cancelRecording();
 
-    // Stop the workers first so no further callbacks are produced.
+    // Stop the workers first so no further callbacks are produced. Insertion checks the cancel
+    // flag between keystroke batches, so draining the pool never needs a forced thread kill.
+    insertionCancel->store (true);
     transcriber.shutdown();
-    insertionPool.removeAllJobs (false, 5000);
+    insertionPool.removeAllJobs (false, -1);
     recorder.shutdown();
     hotkey.unregister();
     foreground.reset();
@@ -263,6 +265,9 @@ void AppController::startDictation (Source source)
         return;
     }
 
+    cancelRequested = false;
+    lastCapturedSamples = 0;
+    lastCaptureProgressAt = juce::Time::getMillisecondCounter();
     current.source = source;
     current.headline = "Listening";
     current.detail = "Press " + hotkeyText() + " again to finish";
@@ -286,6 +291,7 @@ void AppController::stopDictation()
     // Developer test hook for automated end-to-end runs without a human speaker: when
     // STILLETO_TEST_AUDIO names a WAV file, it replaces the captured audio after the real
     // microphone capture above. Never set in normal use.
+   #if STILLETO_ENABLE_TEST_HOOKS   // compiled only with -DSTILLETO_TEST_HOOKS=ON
     if (const auto testAudio = juce::SystemStats::getEnvironmentVariable ("STILLETO_TEST_AUDIO", {}); testAudio.isNotEmpty())
     {
         juce::AudioFormatManager formats;
@@ -300,6 +306,7 @@ void AppController::stopDictation()
             log ("TEST HOOK: substituted " + testAudio + " (" + juce::String (recording.seconds(), 2) + " s)");
         }
     }
+   #endif
 
     if (recording.samples.empty() || recording.seconds() < minimumRecordingSeconds)
     {
@@ -323,7 +330,7 @@ void AppController::stopDictation()
     if (settings.saveRecordings())
     {
         job.saveWavTo = true;
-        job.wavFile = SettingsManager::appDataDirectory().getChildFile ("recordings")
+        job.wavFile = recordingsDirectory()
                           .getChildFile ("dictation-" + juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S") + ".wav");
     }
 
@@ -350,6 +357,7 @@ void AppController::cancelDictation()
             break;
 
         case DictationState::Processing:
+            cancelRequested = true;              // wins even if a successful result is already queued
             transcriber.cancelTranscription();   // the result callback moves to Idle
             current.detail = "Cancelling...";
             notifySession();
@@ -374,7 +382,7 @@ void AppController::handleTranscription (const WhisperTranscriber::Result& r)
 
     using Status = WhisperTranscriber::Result::Status;
 
-    if (r.status == Status::Cancelled)
+    if (r.status == Status::Cancelled || cancelRequested)
     {
         transitionTo (DictationState::Idle);
         current.headline = "Cancelled";
@@ -398,6 +406,7 @@ void AppController::handleTranscription (const WhisperTranscriber::Result& r)
     text::CleanupOptions cleanup;
     cleanup.tidyPunctuation = settings.tidyPunctuation();
     cleanup.paragraphPerSegment = settings.paragraphPerSegment();
+    cleanup.removeDisfluencies = settings.removeDisfluencies();
     const auto cleaned = toJuce (text::cleanTranscript (r.rawText, cleanup));
 
     if (cleaned.isEmpty())
@@ -471,10 +480,13 @@ void AppController::beginInsertion (const juce::String& textToInsert, const Inse
     // SendInput and the clipboard wait are blocking: run them off the message thread.
     auto options = insertOptions();
     options.activateTarget = activateTarget;
+    // A tray click makes Stilleto foreground; the target may then be re-activated (nothing else is).
+    options.activateWhenStilletoForeground = current.source == Source::Tray;
+    insertionProcess = juce::String (target.processName.c_str());
 
-    insertionPool.addJob ([this, token = alive, payload = toUtf16 (textToInsert), target, options, historyId]
+    insertionPool.addJob ([this, token = alive, cancel = insertionCancel, payload = toUtf16 (textToInsert), target, options, historyId]
     {
-        const auto result = TextInserter::insert (payload, target, options);
+        const auto result = TextInserter::insert (payload, target, options, cancel.get());
         juce::MessageManager::callAsync ([this, token, result, historyId]
         {
             if (token->load())
@@ -495,7 +507,8 @@ void AppController::finishInsertion (const InsertResult& result, const juce::Str
                                               : "Not inserted: " + current.insertionNote);
 
     log (juce::String ("Insertion ") + (result.succeeded() ? "succeeded" : "failed") + " via "
-         + (result.methodUsed == InsertMethod::ClipboardPaste ? "clipboard" : "keystrokes") + ": " + current.insertionNote);
+         + (result.methodUsed == InsertMethod::ClipboardPaste ? "clipboard" : "keystrokes") + " into " + insertionProcess
+         + " (status " + juce::String ((int) result.status) + ")");   // process name only: window titles can be private
 
     if (result.succeeded())
     {
@@ -531,6 +544,24 @@ void AppController::insertIntoLastApplication (const juce::String& textToInsert,
 bool AppController::copyToClipboard (const juce::String& textToCopy)
 {
     return TextInserter::copyToClipboard (toUtf16 (textToCopy));
+}
+
+juce::File AppController::recordingsDirectory()
+{
+    return SettingsManager::appDataDirectory().getChildFile ("recordings");
+}
+
+int AppController::savedRecordingCount() const
+{
+    return recordingsDirectory().getNumberOfChildFiles (juce::File::findFiles, "*.wav");
+}
+
+bool AppController::deleteSavedRecordings()
+{
+    bool ok = true;
+    for (const auto& f : recordingsDirectory().findChildFiles (juce::File::findFiles, false, "*.wav"))
+        ok = f.deleteFile() && ok;
+    return ok;
 }
 
 juce::String AppController::lastApplicationName() const
@@ -851,6 +882,23 @@ void AppController::timerCallback()
     if (current.state == DictationState::Recording)
     {
         current.recordedSeconds = recorder.elapsedSeconds();
+
+        // Device lost mid-recording (unplugged, disabled, rate changed): samples stop arriving.
+        const auto now = juce::Time::getMillisecondCounter();
+        const auto captured = recorder.capturedSampleCount();
+        if (captured != lastCapturedSamples)
+        {
+            lastCapturedSamples = captured;
+            lastCaptureProgressAt = now;
+        }
+        if (recorder.deviceFailed() || now - lastCaptureProgressAt > 1500)
+        {
+            refreshMicrophones();
+            setError ("Microphone disconnected", "The microphone stopped delivering audio, so the recording was discarded. "
+                                                 "Check the connection, or choose another microphone in Settings.");
+            return;
+        }
+
         if (current.recordedSeconds >= settings.maxRecordingSeconds())
         {
             log ("Maximum recording length reached");

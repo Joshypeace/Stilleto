@@ -125,6 +125,23 @@ bool ensureForeground (HWND target)
     return true;
 }
 
+bool foregroundIsStilletoOrShell()
+{
+    HWND fg = GetForegroundWindow();
+    if (fg == nullptr)
+        return true;
+
+    DWORD pid = 0;
+    GetWindowThreadProcessId (fg, &pid);
+    if (pid == GetCurrentProcessId())
+        return true;
+
+    wchar_t cls[64] {};
+    GetClassNameW (fg, cls, 64);
+    return lstrcmpW (cls, L"Shell_TrayWnd") == 0 || lstrcmpW (cls, L"Shell_SecondaryTrayWnd") == 0
+        || lstrcmpW (cls, L"NotifyIconOverflowWindow") == 0 || lstrcmpW (cls, L"TopLevelWindowForOverflowXamlIsland") == 0;
+}
+
 INPUT keyInput (WORD vk, bool down)
 {
     INPUT in {};
@@ -164,7 +181,12 @@ void appendUnitEvents (std::vector<INPUT>& events, char16_t unit, bool shiftEnte
     }
 }
 
-InsertResult typeUnicode (const std::u16string& text, HWND target, const InsertOptions& options)
+bool cancelled (const std::atomic<bool>* cancel) noexcept
+{
+    return cancel != nullptr && cancel->load();
+}
+
+InsertResult typeUnicode (const std::u16string& text, HWND target, const InsertOptions& options, const std::atomic<bool>* cancel)
 {
     InsertResult result;
     result.methodUsed = InsertMethod::UnicodeKeys;
@@ -177,6 +199,13 @@ InsertResult typeUnicode (const std::u16string& text, HWND target, const InsertO
     std::size_t i = 0;
     while (i < text.size())
     {
+        if (cancelled (cancel))
+        {
+            result.status = result.unitsSent == 0 ? InsertResult::Status::Failed : InsertResult::Status::PartiallyInserted;
+            result.message = "Typing was stopped because Stilleto is closing.";
+            return result;
+        }
+
         if (GetForegroundWindow() != target)
         {
             result.status = result.unitsSent == 0 ? InsertResult::Status::TargetChanged : InsertResult::Status::PartiallyInserted;
@@ -243,17 +272,29 @@ bool openClipboardWithRetry (HWND owner)
     return false;
 }
 
-bool isCopyableFormat (UINT format)
+/** Formats Windows synthesises from others; skipping them loses nothing. */
+bool isSynthesisedFormat (UINT format)
 {
     switch (format)
     {
-        case CF_BITMAP: case CF_METAFILEPICT: case CF_PALETTE: case CF_ENHMETAFILE:
-        case CF_OWNERDISPLAY: case CF_DSPBITMAP: case CF_DSPMETAFILEPICT: case CF_DSPENHMETAFILE:
-        case CF_TEXT: case CF_OEMTEXT:           // synthesised from CF_UNICODETEXT
-            return false;
+        case CF_TEXT: case CF_OEMTEXT: case CF_BITMAP: case CF_METAFILEPICT: case CF_ENHMETAFILE:
+        case CF_DSPBITMAP: case CF_DSPMETAFILEPICT: case CF_DSPENHMETAFILE: case CF_PALETTE:
+            return true;
         default:
-            return ! (format >= CF_GDIOBJFIRST && format <= CF_GDIOBJLAST);
+            return false;
     }
+}
+
+/** The common HGLOBAL formats worth restoring. Snapshotting only these avoids forcing the source
+    application to render every delayed-rendered format it advertises (Office can offer dozens). */
+bool isRestorableFormat (UINT format)
+{
+    static const UINT html = RegisterClipboardFormatW (L"HTML Format");
+    static const UINT rtf  = RegisterClipboardFormatW (L"Rich Text Format");
+    static const UINT png  = RegisterClipboardFormatW (L"PNG");
+
+    return format == CF_UNICODETEXT || format == CF_LOCALE || format == CF_HDROP || format == CF_DIB
+        || format == CF_DIBV5 || format == html || format == rtf || format == png;
 }
 
 ClipboardSnapshot captureClipboard()   // clipboard must be open
@@ -264,9 +305,14 @@ ClipboardSnapshot captureClipboard()   // clipboard must be open
 
     for (UINT format = EnumClipboardFormats (0); format != 0; format = EnumClipboardFormats (format))
     {
-        // GDI formats are usually synthesised from CF_DIB / CF_UNICODETEXT, so skipping them is not a loss.
-        if (! isCopyableFormat (format))
+        if (isSynthesisedFormat (format))
             continue;
+
+        if (! isRestorableFormat (format))
+        {
+            snapshot.complete = false;   // reported honestly as "clipboard not fully restored"
+            continue;
+        }
 
         HANDLE handle = GetClipboardData (format);
         if (handle == nullptr) continue;
@@ -334,13 +380,34 @@ bool putTextOnClipboard (const std::u16string& text, bool markTransient)   // cl
     return true;
 }
 
-InsertResult pasteViaClipboard (const std::u16string& text, HWND target, const InsertOptions& options)
+void restoreSnapshot (const ClipboardSnapshot& snapshot, InsertResult& result)   // clipboard must be open
+{
+    EmptyClipboard();
+    bool allRestored = snapshot.complete;
+    for (const auto& item : snapshot.items)
+        allRestored = setGlobalData (item.format, item.data.data(), item.data.size()) && allRestored;
+    result.clipboardRestored = allRestored;
+}
+
+/** A message-only window that owns the clipboard while Stilleto writes to it. OpenClipboard(NULL)
+    followed by EmptyClipboard leaves the clipboard without an owner, which the documentation says
+    makes SetClipboardData fail. Created on the calling (insertion) thread. */
+struct ClipboardOwnerWindow
+{
+    HWND hwnd = CreateWindowExW (0, L"STATIC", L"Stilleto clipboard", 0, 0, 0, 0, 0, HWND_MESSAGE,
+                                 nullptr, GetModuleHandleW (nullptr), nullptr);
+    ~ClipboardOwnerWindow() { if (hwnd != nullptr) DestroyWindow (hwnd); }
+};
+
+InsertResult pasteViaClipboard (const std::u16string& text, HWND target, const InsertOptions& options, const std::atomic<bool>* cancel)
 {
     InsertResult result;
     result.methodUsed = InsertMethod::ClipboardPaste;
     result.unitsTotal = text.size();
 
-    if (! openClipboardWithRetry (nullptr))
+    const ClipboardOwnerWindow owner;
+
+    if (! openClipboardWithRetry (owner.hwnd))
     {
         result.status = InsertResult::Status::ClipboardUnavailable;
         result.message = "The clipboard is in use by another application.";
@@ -352,18 +419,27 @@ InsertResult pasteViaClipboard (const std::u16string& text, HWND target, const I
         snapshot = captureClipboard();
 
     const bool written = putTextOnClipboard (text, true);
-    CloseClipboard();
 
     if (! written)
     {
+        // Never leave the user's clipboard wiped by a failed write.
+        if (options.restoreClipboard)
+            restoreSnapshot (snapshot, result);
+        CloseClipboard();
         result.status = InsertResult::Status::ClipboardUnavailable;
         result.message = "Stilleto could not write to the clipboard.";
         return result;
     }
 
+    CloseClipboard();
     const DWORD ourSequence = GetClipboardSequenceNumber();
 
-    if (GetForegroundWindow() != target)
+    if (cancelled (cancel))
+    {
+        result.status = InsertResult::Status::Failed;
+        result.message = "Insertion was stopped because Stilleto is closing.";
+    }
+    else if (GetForegroundWindow() != target)
     {
         result.status = InsertResult::Status::TargetChanged;
         result.message = "Focus moved to another window before pasting.";
@@ -391,14 +467,10 @@ InsertResult pasteViaClipboard (const std::u16string& text, HWND target, const I
         sleepMs (std::max (50, options.pasteSettleMs));
 
         // Restore only if nothing else wrote to the clipboard meanwhile.
-        if (GetClipboardSequenceNumber() == ourSequence && openClipboardWithRetry (nullptr))
+        if (GetClipboardSequenceNumber() == ourSequence && openClipboardWithRetry (owner.hwnd))
         {
-            EmptyClipboard();
-            bool allRestored = snapshot.complete;
-            for (const auto& item : snapshot.items)
-                allRestored = setGlobalData (item.format, item.data.data(), item.data.size()) && allRestored;
+            restoreSnapshot (snapshot, result);
             CloseClipboard();
-            result.clipboardRestored = allRestored;
         }
     }
 
@@ -469,7 +541,8 @@ bool TextInserter::isTargetElevatedAboveUs (unsigned long processId)
 
 bool TextInserter::copyToClipboard (const std::u16string& text)
 {
-    if (! openClipboardWithRetry (nullptr))
+    const ClipboardOwnerWindow owner;
+    if (! openClipboardWithRetry (owner.hwnd))
         return false;
 
     const bool ok = putTextOnClipboard (text, false);
@@ -477,7 +550,8 @@ bool TextInserter::copyToClipboard (const std::u16string& text)
     return ok;
 }
 
-InsertResult TextInserter::insert (const std::u16string& rawText, const InsertionTarget& target, const InsertOptions& options)
+InsertResult TextInserter::insert (const std::u16string& rawText, const InsertionTarget& target, const InsertOptions& options,
+                                   const std::atomic<bool>* cancel)
 {
     InsertResult result;
 
@@ -520,10 +594,15 @@ InsertResult TextInserter::insert (const std::u16string& rawText, const Insertio
         return result;
     }
 
-    if (options.activateTarget ? ! ensureForeground (target.window) : GetForegroundWindow() != target.window)
+    // Activation is allowed when the user explicitly asked to insert, or when the foreground is only
+    // Stilleto itself or a shell surface (e.g. after a tray-menu click). Another application in
+    // front means the user moved on, and focus is never taken from it.
+    const bool activate = options.activateTarget || (options.activateWhenStilletoForeground && foregroundIsStilletoOrShell());
+
+    if (activate ? ! ensureForeground (target.window) : GetForegroundWindow() != target.window)
     {
         result.status = InsertResult::Status::TargetChanged;
-        result.message = options.activateTarget
+        result.message = activate
                            ? "Windows did not allow switching to the target window, so nothing was typed. The transcript is available to copy."
                            : "You switched to another window before the text was ready, so nothing was typed. The transcript is available to copy.";
         return result;
@@ -541,15 +620,15 @@ InsertResult TextInserter::insert (const std::u16string& rawText, const Insertio
 
     if (useClipboard)
     {
-        result = pasteViaClipboard (payload, target.window, options);
+        result = pasteViaClipboard (payload, target.window, options, cancel);
 
         // Clipboard locked by another app: in Automatic mode, paced typing is a safe fallback.
         if (result.status == InsertResult::Status::ClipboardUnavailable && options.method == InsertMethod::Automatic)
-            result = typeUnicode (payload, target.window, options);
+            result = typeUnicode (payload, target.window, options, cancel);
     }
     else
     {
-        result = typeUnicode (payload, target.window, options);
+        result = typeUnicode (payload, target.window, options, cancel);
     }
 
     if (result.succeeded() && result.message.empty())

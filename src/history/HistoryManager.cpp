@@ -31,7 +31,13 @@ bool HistoryManager::load (juce::String& error)
 
     if (list == nullptr)
     {
-        error = "The transcription history file could not be read and was left untouched: " + storage.getFullPathName();
+        // Move the unreadable file aside before anything can overwrite it.
+        const auto backup = storage.getSiblingFile ("history.unreadable-" + juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S") + ".json");
+        const bool moved = storage.moveFileTo (backup);
+        error = moved ? "The transcription history file could not be read. It was kept as " + backup.getFullPathName()
+                      : "The transcription history file could not be read: " + storage.getFullPathName();
+        if (! moved)
+            persistenceEnabled = false;   // never overwrite a file we could not preserve
         return false;
     }
 

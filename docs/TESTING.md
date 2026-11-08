@@ -4,10 +4,10 @@
 
 | Suite | Command | Covers |
 | --- | --- | --- |
-| Core unit tests | `tests\Release\StilletoCoreTests.exe` (ctest `core`) | State-machine transitions and overlap rejection; hotkey parse/format/validation; transcript cleanup (annotations, whitespace, punctuation); UTF-8↔UTF-16 incl. surrogates and invalid input; resampler duration, in-band accuracy and >60 dB anti-alias rejection (48k/44.1k/8k); model file validation; SHA-1 vectors; speech gate and hallucination filter |
+| Core unit tests | `tests\Release\StilletoCoreTests.exe` (ctest `core`) | State-machine transitions and overlap rejection; hotkey parse/format/validation; transcript cleanup (annotations, whitespace, punctuation); disfluency removal (fillers, hyphenated stutters, repeated words) and preservation of intentional repeats, compounds and non-Latin text; UTF-8↔UTF-16 incl. surrogates and invalid input; resampler duration, in-band accuracy and >60 dB anti-alias rejection (48k/44.1k/8k); model file validation; SHA-1 vectors; speech gate and hallucination filter |
 | Whisper integration | `tests\Release\StilletoWhisperTests.exe` (ctest `whisper`) | Missing and invalid models; real `base.en` transcription of the JFK sample; 48 kHz capture → resample → transcribe; cancellation and recovery; empty input; silence; model SHA-1 |
 | Platform (desktop) | `tests\Release\StilletoPlatformTests.exe` | Hotkey register/conflict/pause/unregister; failed rebind keeps the old shortcut; hotkey fires while Notepad is focused without stealing focus or typing; insertion into Notepad: sentence, punctuation, typed newlines, Unicode (accents, em dash, CJK, emoji, Cyrillic), 2,000-character clipboard paste with clipboard restore; forced typing never touches the clipboard; closed targets refused |
-| End to end | `powershell -ExecutionPolicy Bypass -File tests\e2e_notepad.ps1` | The real app: Notepad focused → shortcut → real microphone capture at the device rate → shortcut → worker-thread transcription → insertion into Notepad exactly once, focus kept throughout |
+| End to end (build with `-DSTILLETO_TEST_HOOKS=ON`) | `powershell -ExecutionPolicy Bypass -File tests\e2e_notepad.ps1` | The real app: Notepad focused → shortcut → real microphone capture at the device rate → shortcut → worker-thread transcription → insertion into Notepad exactly once, focus kept throughout |
 
 The platform and end-to-end suites open Notepad and inject keystrokes. Run them on an unlocked
 desktop and **do not use the PC while they run**. Their key presses are guarded so they only go to
@@ -15,9 +15,24 @@ the test's own Notepad window. With no human speaker, the end-to-end script sets
 `STILLETO_TEST_AUDIO` so that the JFK sample replaces the captured audio *after* the real microphone
 capture.
 
+Disfluency end to end: `testsixtures\stutter.wav` (Windows speech synthesis of "Um, I, I, I think,
+uh, the, the plan works. So, um, we, we should send it today."):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests\e2e_notepad.ps1 -Wav testsixtures\stutter.wav -Expect "plan works" `
+    -Forbid "(?i)(um|uh)|(I),? |the,? the|we,? we"
+```
+
 `StilletoPlatformTests.exe tune` with `STILLETO_TUNE=1` measures keystroke pacing (diagnostic).
 
 ## Results recorded during development (2026-11-08, Windows 11 22621, VS 2026 / MSVC 14.51)
+
+Round 2 (disfluency filter + review fixes): core 20/20, whisper 8/8, platform 7/7 (the two
+forced-*Typing* cases failed once on the first run and passed on the next two runs, which is the
+known Notepad keystroke sensitivity below; every clipboard-paste case passed every time), end to end
+6/6, disfluency end to end 7/7 ("I think the plan works. So we should send it today.").
+
+Round 1:
 
 - Core: 17/17 passed. Whisper: 8/8 passed (JFK sample: 11 s of audio transcribed in about 4.5 s on CPU, Release).
 - Platform: 7/7 passed.
@@ -34,6 +49,7 @@ Microphone and audio
 - [ ] Unplug the microphone, then dictate: you get a clear "Microphone unavailable" error.
 - [ ] Windows Settings → Privacy → Microphone → off for desktop apps: dictation reports blocked or silent audio.
 - [ ] Stop within 0.3 s of starting: "Recording too short". Record silence: "No speech detected".
+- [ ] Say "um, I-I think, uh, the the plan works": it is typed as "I think the plan works". Turn off *Remove fillers and stutters* and it is typed as heard.
 
 Focus and insertion
 - [ ] Notepad, Word, a browser `<textarea>`, a chat app and VS Code: text appears at the caret.

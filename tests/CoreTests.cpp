@@ -106,6 +106,41 @@ TEST_CASE ("text: segments join and punctuation is tidied")
     CHECK_EQ (text::tidyPunctuation ("1,000 items"), std::string ("1,000 items"));
 }
 
+TEST_CASE ("disfluency: fillers are removed with their commas")
+{
+    CHECK_EQ (text::removeDisfluencies ("Um, so I think we should go."), std::string ("so I think we should go."));
+    CHECK_EQ (text::removeDisfluencies ("I was, uh, thinking about it."), std::string ("I was thinking about it."));
+    CHECK_EQ (text::removeDisfluencies ("We can, um, erm, maybe meet."), std::string ("We can maybe meet."));
+    CHECK_EQ (text::removeDisfluencies ("That is fine, hmm."), std::string ("That is fine."));
+    CHECK_EQ (text::removeDisfluencies ("Uh"), std::string());
+    // Full pipeline restores capitalisation after a leading filler.
+    CHECK_EQ (text::cleanTranscript (" Um, so I think we should go.", {}), std::string ("So I think we should go."));
+}
+
+TEST_CASE ("disfluency: stutters collapse")
+{
+    CHECK_EQ (text::removeDisfluencies ("I-I-I think so."), std::string ("I think so."));
+    CHECK_EQ (text::removeDisfluencies ("w-what time is it?"), std::string ("what time is it?"));
+    CHECK_EQ (text::removeDisfluencies ("b-b-but why?"), std::string ("but why?"));
+    CHECK_EQ (text::removeDisfluencies ("th-th-the report"), std::string ("the report"));
+    CHECK_EQ (text::removeDisfluencies ("I I I think the the plan works."), std::string ("I think the plan works."));
+    CHECK_EQ (text::removeDisfluencies ("I, I, I think so."), std::string ("I think so."));
+    CHECK_EQ (text::removeDisfluencies ("We we we need it."), std::string ("We need it."));
+    CHECK_EQ (text::removeDisfluencies ("really really really good"), std::string ("really good"));
+}
+
+TEST_CASE ("disfluency: legitimate text is preserved")
+{
+    for (const char* keep : { "I know that that is true.", "She had had enough.", "It is very very good.",
+                              "Please re-read the e-mail.", "A well-known co-op.", "No, no, I disagree.",
+                              "The end. The next chapter.", "Call me at 10-12.", "\xD0\x94\xD0\xB0, \xD0\xB4\xD0\xB0." })
+        CHECK_EQ (text::removeDisfluencies (keep), std::string (keep));
+
+    text::CleanupOptions off;
+    off.removeDisfluencies = false;
+    CHECK_EQ (text::cleanTranscript ("Um, I I think", off), std::string ("Um, I I think"));
+}
+
 TEST_CASE ("text: word counting")
 {
     CHECK_EQ (text::countWords (""), std::size_t (0));
@@ -282,7 +317,9 @@ TEST_CASE ("speech: common whisper hallucinations")
     CHECK (isCommonHallucination ("You"));
     CHECK (isCommonHallucination (" Thank you. "));
     CHECK (isCommonHallucination ("Thanks for watching!"));
-    CHECK (isCommonHallucination (""));
+    CHECK (! isCommonHallucination (""));
+    CHECK (! isCommonHallucination ("Да."));   // Russian "Da."
+    CHECK (! isCommonHallucination ("はい"));   // Japanese "hai"
     CHECK (! isCommonHallucination ("Thank you for the update, see you tomorrow."));
     CHECK (! isCommonHallucination ("Send the report"));
 }

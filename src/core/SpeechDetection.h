@@ -22,7 +22,8 @@ struct SpeechAnalysis
 
 [[nodiscard]] SpeechAnalysis analyseSpeech (std::span<const float> pcm, double sampleRate);
 
-/** True for the stock phrases whisper produces from non-speech (case/punctuation-insensitive). */
+/** True for the stock English phrases whisper produces from non-speech (case/punctuation-
+    insensitive). Only meaningful for English output; non-Latin text never matches. */
 [[nodiscard]] bool isCommonHallucination (std::string_view text);
 
 } // namespace stilleto

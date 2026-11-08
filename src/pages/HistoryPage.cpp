@@ -13,7 +13,12 @@ public:
         for (auto* b : { &copy, &insert, &remove })
             addAndMakeVisible (b);
 
-        copy.onClick = [this] { page.controller.copyToClipboard (entry.text); flash = "Copied"; repaint(); };
+        copy.onClick = [this]
+        {
+            flashIsError = ! page.controller.copyToClipboard (entry.text);
+            flash = flashIsError ? "Clipboard busy - try again" : "Copied";
+            repaint();
+        };
         insert.onClick = [this] { page.controller.insertIntoLastApplication (entry.text, entry.id); };
         remove.onClick = [this]
         {
@@ -77,7 +82,7 @@ public:
 
         // Insertion status, right aligned under the actions.
         const auto statusArea = r.reduced (18.0f, 12.0f).removeFromRight (240.0f).removeFromBottom (18.0f);
-        g.setColour (flash.isNotEmpty() ? Colours::success : entry.inserted ? Colours::success.withAlpha (0.85f) : Colours::textMuted);
+        g.setColour (flash.isNotEmpty() ? (flashIsError ? Colours::error : Colours::success) : entry.inserted ? Colours::success.withAlpha (0.85f) : Colours::textMuted);
         g.drawText (flash.isNotEmpty() ? flash : entry.insertionNote, statusArea, juce::Justification::centredRight, true);
     }
 
@@ -85,6 +90,7 @@ private:
     HistoryPage& page;
     HistoryEntry entry;
     juce::String flash;
+    bool flashIsError = false;
     IconButton copy { Icons::Id::Copy, "Copy transcript" };
     IconButton insert { Icons::Id::Insert, "Insert again" };
     IconButton remove { Icons::Id::Trash, "Delete entry", true };
@@ -124,7 +130,8 @@ juce::String HistoryPage::pageSubtitle() const
 {
     const auto& h = controller.getHistory();
     if (! h.isPersistenceEnabled()) return "History is turned off - nothing is being saved";
-    return juce::String (h.totalDictations()) + " saved on this PC  " + ui::middot() + "  raw audio is never stored";
+    return juce::String (h.totalDictations()) + " saved on this PC  " + ui::middot() + "  "
+           + (controller.getSettings().saveRecordings() ? "raw recordings are also being saved (Settings > Privacy)" : "raw audio is never stored");
 }
 
 void HistoryPage::refresh()

@@ -54,6 +54,10 @@ public:
     [[nodiscard]] bool isRecording() const noexcept { return recording.load(); }
     [[nodiscard]] bool isDeviceOpen() const noexcept { return deviceOpen; }
     [[nodiscard]] double elapsedSeconds() const noexcept;
+    [[nodiscard]] juce::int64 capturedSampleCount() const noexcept { return capturedSamples.load(); }
+
+    /** True if the device stopped, reported an error or restarted at another rate while recording. */
+    [[nodiscard]] bool deviceFailed() const noexcept { return failed.load(); }
     [[nodiscard]] juce::String currentDeviceName() const;
     [[nodiscard]] double currentSampleRate() const noexcept { return sampleRate.load(); }
 
@@ -94,6 +98,7 @@ private:
     std::atomic<double> sampleRate { 0.0 };
     std::atomic<float> level { 0.0f };
     std::atomic<bool> fifoOverflow { false };
+    std::atomic<bool> failed { false };
     std::atomic<juce::int64> capturedSamples { 0 };
 
     std::array<std::atomic<float>, envelopeSize> envelope {};

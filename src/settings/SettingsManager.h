@@ -39,6 +39,7 @@ public:
         static inline const juce::Identifier trailingSpace       { "trailingSpace" };
         static inline const juce::Identifier paragraphPerSegment { "paragraphPerSegment" };
         static inline const juce::Identifier tidyPunctuation     { "tidyPunctuation" };
+        static inline const juce::Identifier removeDisfluencies  { "removeDisfluencies" };
         static inline const juce::Identifier saveHistory         { "saveHistory" };
         static inline const juce::Identifier saveRecordings      { "saveRecordings" };
         static inline const juce::Identifier recordingIndicator  { "recordingIndicator" };
@@ -92,6 +93,7 @@ public:
     bool trailingSpace() const;              void setTrailingSpace (bool);
     bool paragraphPerSegment() const;        void setParagraphPerSegment (bool);
     bool tidyPunctuation() const;            void setTidyPunctuation (bool);
+    bool removeDisfluencies() const;         void setRemoveDisfluencies (bool);
 
     // Privacy
     bool saveHistory() const;                void setSaveHistory (bool);

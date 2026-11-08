@@ -84,6 +84,11 @@ public:
     void insertIntoLastApplication (const juce::String& text, const juce::String& historyId = {});
     bool copyToClipboard (const juce::String& text);
 
+    // Opt-in raw recordings (Settings > Privacy > Save raw recordings).
+    [[nodiscard]] static juce::File recordingsDirectory();
+    [[nodiscard]] int savedRecordingCount() const;
+    bool deleteSavedRecordings();   // returns false if any file could not be deleted
+
     [[nodiscard]] const Session& session() const noexcept { return current; }
     [[nodiscard]] DictationState state() const noexcept { return current.state; }
     [[nodiscard]] double liveRecordingSeconds() const noexcept { return recorder.elapsedSeconds(); }
@@ -177,6 +182,11 @@ private:
     bool quitConfirmationOpen = false;
     bool hotkeyHeldBeforeCapture = false;
     bool choosingModel = false;
+    bool cancelRequested = false;
+    juce::int64 lastCapturedSamples = 0;
+    juce::uint32 lastCaptureProgressAt = 0;
+    juce::String insertionProcess;
+    std::shared_ptr<std::atomic<bool>> insertionCancel = std::make_shared<std::atomic<bool>> (false);
     bool snapshotMode = false;
 
     std::shared_ptr<std::atomic<bool>> alive = std::make_shared<std::atomic<bool>> (true);

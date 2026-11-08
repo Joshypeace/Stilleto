@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <vector>
 
 namespace stilleto::text
 {
@@ -187,6 +188,188 @@ std::string tidyPunctuation (std::string_view text)
     return out;
 }
 
+namespace
+{
+struct Token
+{
+    std::string leading;   // opening quotes/brackets
+    std::string core;      // the word itself
+    std::string trailing;  // punctuation after the word
+};
+
+bool isWordChar (unsigned char c) { return std::isalnum (c) || c == '\'' || c == '-' || c >= 0x80; }
+
+Token splitToken (const std::string& raw)
+{
+    Token t;
+    std::size_t start = 0, end = raw.size();
+    while (start < end && ! isWordChar (static_cast<unsigned char> (raw[start]))) ++start;
+    while (end > start && ! isWordChar (static_cast<unsigned char> (raw[end - 1]))) --end;
+    // A trailing hyphen is a cut-off word ("wh-"), keep it in the core.
+    t.leading = raw.substr (0, start);
+    t.core = raw.substr (start, end - start);
+    t.trailing = raw.substr (end);
+    return t;
+}
+
+std::string lowerAscii (const std::string& s)
+{
+    std::string out = s;
+    for (auto& c : out) c = static_cast<char> (std::tolower (static_cast<unsigned char> (c)));
+    return out;
+}
+
+bool isFiller (const std::string& lowerCore)
+{
+    static const char* fillers[] = { "um", "umm", "ummm", "uh", "uhh", "uhm", "er", "err", "erm", "ah", "ahh",
+                                     "eh", "hmm", "hmmm", "hm", "mm", "mmm", "mhm" };
+    for (const char* f : fillers)
+        if (lowerCore == f) return true;
+    return false;
+}
+
+/** "I-I-I" -> "I", "w-what" -> "what", "b-b-but" -> "but". Leaves real compounds alone. */
+std::string collapseHyphenStutter (const std::string& core)
+{
+    if (core.find ('-') == std::string::npos)
+        return core;
+
+    std::vector<std::string> parts;
+    std::size_t start = 0;
+    for (std::size_t i = 0; i <= core.size(); ++i)
+        if (i == core.size() || core[i] == '-')
+        {
+            parts.push_back (core.substr (start, i - start));
+            start = i + 1;
+        }
+
+    const auto& last = parts.back();
+    if (last.empty() || parts.size() < 2)
+        return core;
+
+    const auto lastLower = lowerAscii (last);
+    std::size_t fragmentLength = 0;
+    for (std::size_t i = 0; i + 1 < parts.size(); ++i)
+    {
+        const auto frag = lowerAscii (parts[i]);
+        // Each fragment must be a short prefix of the final word ("w" of "what", "th" of "the").
+        if (frag.empty() || frag.size() > 3 || lastLower.compare (0, frag.size(), frag) != 0)
+            return core;
+        fragmentLength = std::max (fragmentLength, frag.size());
+    }
+
+    // One fragment of 2-3 letters is too often a real prefix ("re-read", "co-cook"); require either
+    // a single-letter fragment or repetition ("th-th-the").
+    if (parts.size() == 2 && fragmentLength > 1 && lowerAscii (parts[0]) != lastLower)
+        return core;
+
+    return last;
+}
+
+/** Short words people stammer on. Doubles of other words ("that that", "had had", "very very",
+    "no no") are often intentional and are only collapsed when repeated three or more times. */
+bool isStutterProne (const std::string& lowerCore)
+{
+    static const char* words[] = { "i", "i'm", "a", "an", "the", "and", "to", "we", "it", "it's", "so", "but", "my",
+                                   "you", "he", "she", "they", "in", "of", "on", "what", "this", "can", "will",
+                                   "do", "if", "for", "with", "just", "like", "um", "uh" };
+    for (const char* w : words)
+        if (lowerCore == w) return true;
+    return false;
+}
+} // namespace
+
+std::string removeDisfluencies (std::string_view input)
+{
+    const auto text = normaliseLineEndings (input);
+    std::string out;
+    out.reserve (text.size());
+
+    std::size_t lineStart = 0;
+    while (lineStart <= text.size())
+    {
+        auto lineEnd = text.find ('\n', lineStart);
+        if (lineEnd == std::string::npos) lineEnd = text.size();
+
+        // Tokenise the line on whitespace.
+        std::vector<Token> tokens;
+        std::size_t i = lineStart;
+        while (i < lineEnd)
+        {
+            while (i < lineEnd && isAsciiSpace (text[i])) ++i;
+            const auto s = i;
+            while (i < lineEnd && ! isAsciiSpace (text[i])) ++i;
+            if (i > s) tokens.push_back (splitToken (text.substr (s, i - s)));
+        }
+
+        std::vector<Token> kept;
+        for (auto& t : tokens)
+        {
+            t.core = collapseHyphenStutter (t.core);
+            const auto lower = lowerAscii (t.core);
+
+            if (! t.core.empty() && isFiller (lower))
+            {
+                // "I was, uh, thinking" -> "I was thinking": drop the comma the filler leaned on,
+                // but keep sentence-ending punctuation.
+                const bool fillerEndsSentence = t.trailing.find_first_of (".!?") != std::string::npos;
+                if (fillerEndsSentence && ! kept.empty())
+                    kept.back().trailing = t.trailing.substr (t.trailing.find_first_of (".!?"));
+                else if (! kept.empty() && ! kept.back().trailing.empty() && kept.back().trailing.back() == ',')
+                    kept.back().trailing.pop_back();
+                continue;
+            }
+
+            // Repeated word: keep the last occurrence (it carries the following punctuation).
+            if (! kept.empty() && ! t.core.empty() && kept.back().leading.empty() && t.leading.empty())
+            {
+                const auto prevLower = lowerAscii (kept.back().core);
+                const bool prevSoftEnd = kept.back().trailing.empty() || kept.back().trailing == ",";
+
+                if (prevLower == lower && prevSoftEnd)
+                {
+                    // Count the run to decide whether a non-prone double is intentional.
+                    std::size_t run = 1;
+                    for (auto it = kept.rbegin(); it != kept.rend() && lowerAscii (it->core) == lower; ++it) ++run;
+                    const bool collapse = isStutterProne (lower) || run >= 3;
+
+                    if (collapse)
+                    {
+                        // Collapse the whole run to one word, keeping the first occurrence's
+                        // capitalisation ("I I think") and the last one's punctuation.
+                        const auto firstCore = kept[kept.size() - (run - 1)].core;
+                        kept.resize (kept.size() - (run - 1));
+                        auto replacement = t;
+                        replacement.core = firstCore;
+                        kept.push_back (replacement);
+                        continue;
+                    }
+                }
+            }
+
+            kept.push_back (t);
+        }
+
+        std::string line;
+        for (const auto& t : kept)
+        {
+            const auto piece = t.leading + t.core + t.trailing;
+            if (piece.empty()) continue;
+            if (! line.empty()) line += ' ';
+            line += piece;
+        }
+
+        out += line;
+        if (lineEnd == text.size()) break;
+        out += '\n';
+        lineStart = lineEnd + 1;
+    }
+
+    // A sentence that started with a removed filler ("Um, so...") may begin with a stray comma.
+    std::size_t first = out.find_first_not_of (" ,");
+    return first == std::string::npos ? std::string() : out.substr (first);
+}
+
 std::string cleanTranscript (std::string_view rawText, const CleanupOptions& options)
 {
     auto text = normaliseLineEndings (rawText);
@@ -195,6 +378,9 @@ std::string cleanTranscript (std::string_view rawText, const CleanupOptions& opt
         std::replace (text.begin(), text.end(), '\n', ' ');
 
     text = normaliseWhitespace (stripNonSpeechAnnotations (text));
+
+    if (options.removeDisfluencies)
+        text = normaliseWhitespace (removeDisfluencies (text));
 
     if (options.tidyPunctuation)
         text = normaliseWhitespace (tidyPunctuation (text));

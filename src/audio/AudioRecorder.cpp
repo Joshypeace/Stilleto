@@ -162,6 +162,7 @@ bool AudioRecorder::beginRecording (juce::String& error)
     }
 
     fifoOverflow = false;
+    failed = false;
     capturedSamples = 0;
     recording = true;
     notify();
@@ -243,6 +244,11 @@ void AudioRecorder::copyEnvelope (float* destination, int count) const noexcept
 void AudioRecorder::audioDeviceAboutToStart (juce::AudioIODevice* device)
 {
     const double rate = device->getCurrentSampleRate();
+
+    // A restart at a different rate mid-recording would mislabel the captured samples.
+    if (recording.load() && sampleRate.load() > 0 && std::abs (rate - sampleRate.load()) > 0.5)
+        failed = true;
+
     sampleRate = rate;
     envelopeChunk = juce::jmax (64, static_cast<int> (rate * 0.012));
     envelopeAccum = 0.0;
@@ -255,11 +261,15 @@ void AudioRecorder::audioDeviceAboutToStart (juce::AudioIODevice* device)
 void AudioRecorder::audioDeviceStopped()
 {
     level = 0.0f;
+    if (recording.load())
+        failed = true;   // e.g. the device was unplugged; the controller reports it
 }
 
 void AudioRecorder::audioDeviceError (const juce::String& message)
 {
-    juce::ignoreUnused (message);   // surfaced through silence/empty-recording handling
+    juce::ignoreUnused (message);
+    if (recording.load())
+        failed = true;
 }
 
 void AudioRecorder::audioDeviceIOCallbackWithContext (const float* const* inputs, int numInputs, float* const* outputs,

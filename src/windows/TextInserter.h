@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstddef>
 #include <string>
 
@@ -50,6 +51,10 @@ struct InsertOptions
     // must never pull focus back from wherever the user went); true = bring the target forward
     // first (the user explicitly clicked Insert in Stilleto).
     bool activateTarget = false;
+
+    // Bring the target forward only if the foreground is Stilleto itself or a shell surface such
+    // as the taskbar (dictation started from the tray menu, which takes the foreground).
+    bool activateWhenStilletoForeground = false;
 };
 
 struct InsertResult
@@ -91,7 +96,8 @@ public:
         target is no longer in the foreground and cannot be restored, nothing is sent. */
     [[nodiscard]] static InsertResult insert (const std::u16string& text,
                                               const InsertionTarget& target,
-                                              const InsertOptions& options);
+                                              const InsertOptions& options,
+                                              const std::atomic<bool>* cancel = nullptr);
 
     /** Puts text on the clipboard (Copy action). Returns false if the clipboard is locked. */
     static bool copyToClipboard (const std::u16string& text);
