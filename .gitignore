@@ -1,0 +1,20 @@
+# Build output
+/out/
+/build/
+/cmake-build-*/
+CMakeUserPresets.json
+
+# IDE state
+/.vs/
+*.user
+*.suo
+.vscode/
+
+# Whisper models are large and downloaded separately (see models/README.md)
+/models/*.bin
+/models/*.gguf
+/models/*.partial
+
+# OS
+Thumbs.db
+desktop.ini
