@@ -15,12 +15,12 @@ the test's own Notepad window. With no human speaker, the end-to-end script sets
 `STILLETO_TEST_AUDIO` so that the JFK sample replaces the captured audio *after* the real microphone
 capture.
 
-Disfluency end to end: `testsixtures\stutter.wav` (Windows speech synthesis of "Um, I, I, I think,
+Disfluency end to end: `tests\fixtures\stutter.wav` (Windows speech synthesis of "Um, I, I, I think,
 uh, the, the plan works. So, um, we, we should send it today."):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File tests\e2e_notepad.ps1 -Wav testsixtures\stutter.wav -Expect "plan works" `
-    -Forbid "(?i)(um|uh)|(I),? |the,? the|we,? we"
+powershell -ExecutionPolicy Bypass -File tests\e2e_notepad.ps1 -Wav tests\fixtures\stutter.wav -Expect "plan works" `
+    -Forbid "(?i)\b(um|uh)\b|\b(I),? \1\b|\bthe,? the\b|\bwe,? we\b"
 ```
 
 `StilletoPlatformTests.exe tune` with `STILLETO_TUNE=1` measures keystroke pacing (diagnostic).
