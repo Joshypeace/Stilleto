@@ -313,7 +313,7 @@ void RecordingWidget::paint (juce::Graphics& g)
             break;
         case DictationState::Completed:
             headline = s.transcript.isNotEmpty() ? s.transcript : s.headline;
-            detail = s.inserted ? (s.clipboardNote.isNotEmpty() ? "Inserted - " + s.clipboardNote : "Inserted into " + s.targetName)
+            detail = s.inserted ? (s.clipboardNote.isNotEmpty() ? juce::String ("Inserted - clipboard only partly restored") : "Inserted into " + s.targetName)
                                 : s.insertionNote;
             break;
         case DictationState::Error:

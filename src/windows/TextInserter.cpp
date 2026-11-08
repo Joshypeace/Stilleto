@@ -487,7 +487,7 @@ InsertResult pasteViaClipboard (const std::u16string& text, HWND target, const I
             restoreSnapshot (snapshot, result);
             CloseClipboard();
             if (! result.clipboardRestored)
-                result.clipboardNote = "Your previous clipboard was restored, but some application-specific formats could not be kept.";
+                result.clipboardNote = "Some formats of your previous clipboard could not be restored (its text was).";
         }
         else if (GetClipboardSequenceNumber() == ourSequence)
         {

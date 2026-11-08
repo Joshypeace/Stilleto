@@ -372,15 +372,27 @@ TEST_CASE ("insert: long text uses the clipboard and restores previous contents"
     CHECK (r.clipboardRestored);
     CHECK_EQ (notepad.text(), longText);
     CHECK_EQ (clipboardText(), original);
-    notepad.clear();
-    std::this_thread::sleep_for (1500ms);   // Notepad re-lays out 2000 characters; let it go idle
+}
 
-    // Forced Unicode keystrokes never touch the clipboard.
+TEST_CASE ("insert: forced typing never touches the clipboard")
+{
+    // A fresh editor: right after a large paste Notepad is busy and even the test's own Ctrl+A can
+    // arrive as plain text, which would make this check measure the harness instead of the inserter.
+    NotepadSession notepad ("typing");
+    REQUIRE (notepad.ok());
+
+    const std::string original = "Clipboard contents that belong to the user";
+    REQUIRE (TextInserter::copyToClipboard (text::utf8ToUtf16 (original)));
+
+    const auto target = TextInserter::captureForeground();
+    REQUIRE (target.isValid());
+
+    InsertOptions options;
     options.method = InsertMethod::UnicodeKeys;
-    const std::string medium = longText.substr (0, 60);
-    const auto r2 = insertAndSettle (medium, target, options);
-    CHECK (r2.succeeded());
-    CHECK (r2.methodUsed == InsertMethod::UnicodeKeys);
+    const std::string medium = "Stilleto types this short phrase key by key.";
+    const auto r = insertAndSettle (medium, target, options);
+    CHECK (r.succeeded());
+    CHECK (r.methodUsed == InsertMethod::UnicodeKeys);
     CHECK_EQ (notepad.text(), medium);
     CHECK_EQ (clipboardText(), original);
 }

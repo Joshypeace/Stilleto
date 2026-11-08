@@ -247,7 +247,8 @@ bool isFiller (const std::string& core, const std::string& previousCore)
     if ((lower == "mm" || lower == "m") && ! previousCore.empty() && std::isdigit (static_cast<unsigned char> (previousCore.back())))
         return false;
 
-    static const char* fillers[] = { "um", "umm", "ummm", "uh", "uhh", "uhm", "er", "err", "erm", "ah", "ahh",
+    // Not "err": it is a real verb ("err on the side of caution"); whisper writes hesitations as "er".
+    static const char* fillers[] = { "um", "umm", "ummm", "uh", "uhh", "uhm", "er", "erm", "ah", "ahh",
                                      "eh", "hmm", "hmmm", "hm", "mm", "mmm", "mhm" };
     for (const char* f : fillers)
         if (lower == f) return true;
@@ -354,6 +355,17 @@ bool isLetterOrNumeral (const std::vector<Token>& kept, const Token& current)
         return false;
     }
 
+    // "Part I, I think", "Section I I covers": numbering nouns are followed by numerals anywhere.
+    if (first == "I" && kept.size() >= 2)
+    {
+        static const char* numberingNouns[] = { "part", "section", "chapter", "volume", "book", "act", "phase",
+                                                "stage", "level", "class", "type", "article", "appendix", "war" };
+        const auto before = lowerAscii (kept[kept.size() - 2].core);
+        for (const char* n : numberingNouns)
+            if (before == n && std::isupper (static_cast<unsigned char> (kept[kept.size() - 2].core[0])))
+                return true;
+    }
+
     if (first == "I" && midSentence)
     {
         // "Chapter I", "World War I", "Henry I": a capitalised word before a mid-sentence "I".
@@ -398,7 +410,10 @@ std::string removeDisfluencies (std::string_view input)
             t.core = collapseHyphenStutter (t.core);
             const auto lower = lowerAscii (t.core);
 
-            if (! t.core.empty() && isFiller (t.core, kept.empty() ? std::string() : kept.back().core))
+            // "It's cold, eh?": a sentence-final "eh" after a kept word is a tag, not a hesitation.
+            const bool ehTag = lower == "eh" && ! kept.empty() && ! endsSentence (kept.back().trailing) && endsSentence (t.trailing);
+
+            if (! t.core.empty() && ! ehTag && isFiller (t.core, kept.empty() ? std::string() : kept.back().core))
             {
                 const bool startsSentence = kept.empty() || endsSentence (kept.back().trailing);
 

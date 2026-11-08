@@ -162,7 +162,11 @@ TEST_CASE ("disfluency: legitimate text is preserved")
                               "He went to the ER last night.", "I took him to the ER.", "Use a 50 mm lens.",
                               "The gap is 3 mm wide.", "UM is a great school.", "Take vitamin A a day.",
                               "I got an A, a real A.", "In Chapter I, I explain the method.", "The A A battery is dead.",
-                              "Run a t-test on the results.", "He is a b-boy." })
+                              "Run a t-test on the results.", "He is a b-boy.",
+                              // Review round 4.
+                              "We should err on the side of caution.", "Err on the side of caution.", "To err is human.",
+                              "Humans err.", "It's cold, eh?", "Nice day, eh.", "Part I I covers basics.",
+                              "Section I, I think, is short." })
         CHECK_EQ (text::removeDisfluencies (keep), std::string (keep));
 
     text::CleanupOptions off;
