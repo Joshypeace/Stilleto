@@ -256,7 +256,7 @@ void ModelsPage::rebuild()
         row->title = m.displayName;
         row->description = m.catalog != nullptr ? str (m.catalog->description) : "Custom model file";
         juce::String location = m.inUserDirectory ? "Stilleto folder" : m.file.getParentDirectory().getFullPathName();
-        row->meta = m.file.getFileName() + "  ·  " + juce::String (formatBytes ((std::uint64_t) m.sizeBytes)) + "  ·  " + location;
+        row->meta = m.file.getFileName() + "  " + ui::middot() + "  " + juce::String (formatBytes ((std::uint64_t) m.sizeBytes)) + "  " + ui::middot() + "  " + location;
         row->active = m.file == controller.activeModelFile();
 
         if (m.status != ModelFileStatus::Valid)
@@ -308,8 +308,8 @@ void ModelsPage::rebuild()
         c.catalogCard.addAndMakeVisible (row);
         row->title = str (m.displayName);
         row->description = str (m.description);
-        row->meta = juce::String (m.fileName()) + "  ·  " + juce::String (formatBytes (m.approximateBytes))
-                    + (m.englishOnly ? "  ·  English" : "  ·  99 languages");
+        row->meta = juce::String (m.fileName()) + "  " + ui::middot() + "  " + juce::String (formatBytes (m.approximateBytes))
+                    + (m.englishOnly ? "  " + ui::middot() + "  English" : "  " + ui::middot() + "  99 languages");
 
         const bool downloadingThis = models.downloadingId() == str (m.id);
         if (downloadingThis)

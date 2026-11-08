@@ -1,4 +1,5 @@
 #include "AppController.h"
+#include "theme/Icons.h"
 #include "theme/StilletoLookAndFeel.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -13,7 +14,11 @@ public:
     const juce::String getApplicationVersion() override { return JUCE_APPLICATION_VERSION_STRING; }
 
     // One instance owns the global shortcut; a second launch just shows the first one's window.
-    bool moreThanOneInstanceAllowed() override { return false; }
+    bool moreThanOneInstanceAllowed() override
+    {
+        const auto args = getCommandLineParameters();   // developer render modes only
+        return args.contains ("--snapshot") || args.contains ("--export-icon");
+    }
 
     void initialise (const juce::String& commandLine) override
     {
@@ -24,7 +29,29 @@ public:
         juce::LookAndFeel::setDefaultLookAndFeel (&lookAndFeel);
         tooltips = std::make_unique<juce::TooltipWindow> (nullptr, 700);
 
+        if (commandLine.contains ("--export-icon"))
+        {
+            // Developer aid: renders the vector brand mark to the PNG that CMake embeds as the exe icon.
+            const juce::File out (commandLine.fromFirstOccurrenceOf ("--export-icon", false, false).trim().unquoted());
+            out.getParentDirectory().createDirectory();
+            out.deleteFile();
+            if (auto stream = out.createOutputStream())
+                juce::PNGImageFormat().writeImageToStream (ui::Icons::renderBrandImage (512), *stream);
+            quit();
+            return;
+        }
+
         controller = std::make_unique<AppController>();
+
+        if (commandLine.contains ("--snapshot"))
+        {
+            const auto dir = commandLine.fromFirstOccurrenceOf ("--snapshot", false, false).trim().unquoted();
+            controller->renderSnapshots (juce::File::isAbsolutePath (dir) ? juce::File (dir)
+                                                                         : juce::File::getCurrentWorkingDirectory().getChildFile ("snapshots"),
+                                         [] { juce::JUCEApplication::quit(); });
+            return;
+        }
+
         controller->initialise (commandLine.contains ("--minimized"));
     }
 

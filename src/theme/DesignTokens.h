@@ -61,6 +61,14 @@ namespace Fonts
     }
 }
 
+/** U+00B7 MIDDLE DOT for metadata separators. Built from explicit UTF-8: juce::String treats a
+    plain const char* literal as ASCII, which would garble the character. */
+inline const juce::String& middot()
+{
+    static const juce::String dot (juce::String::charToString (static_cast<juce::juce_wchar> (0x00B7)));
+    return dot;
+}
+
 /** Champagne-gold gradient used for primary actions and the recording state. */
 inline juce::ColourGradient goldGradient (juce::Rectangle<float> r, float brightness = 1.0f)
 {

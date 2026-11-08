@@ -110,7 +110,7 @@ if(STILLETO_BUILD_APP)
 # Stilleto application
 #-----------------------------------------------------------------------------------------------
 # assets/StilletoIcon.png is rendered from the same vector brand mark the UI draws
-# (tools/IconExporter). It is optional so a fresh checkout configures before it exists.
+# (Stilleto.exe --export-icon assets/StilletoIcon.png). It is optional so a fresh checkout configures before it exists.
 set(_stilleto_icon_args)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/StilletoIcon.png")
     set(_stilleto_icon_args ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/assets/StilletoIcon.png")

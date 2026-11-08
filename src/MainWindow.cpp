@@ -256,10 +256,7 @@ MainWindow::MainWindow (AppController& c)
         peer->setIcon (Icons::renderBrandImage (64));
 }
 
-MainWindow::~MainWindow()
-{
-    controller.getSettings().setWindowState (getWindowStateAsString());
-}
+MainWindow::~MainWindow() = default;   // AppController::shutdown() saves the window state
 
 void MainWindow::showPage (AppController::Page page)
 {

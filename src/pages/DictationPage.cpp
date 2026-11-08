@@ -197,7 +197,7 @@ void DictationPage::paintOverChildren (juce::Graphics& g)
             line1 = controller.modelStatus() == AppController::ModelStatus::NoModel
                         ? "Open Models to download base.en (142 MB), then come back."
                         : "Click the microphone, or press " + controller.hotkeyText() + " from any application.";
-            line2 = "Using " + controller.modelName() + "  ·  " + controller.microphoneName();
+            line2 = "Using " + controller.modelName() + "  " + ui::middot() + "  " + controller.microphoneName();
             break;
     }
 

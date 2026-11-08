@@ -66,10 +66,10 @@ public:
         g.setFont (Fonts::body());
         g.drawFittedText (entry.text, content.toNearestInt(), juce::Justification::topLeft, 2, 1.0f);
 
-        juce::String info = relativeTime (entry.timestamp) + "   ·   " + formatDuration (entry.durationSeconds)
-                          + "   ·   " + juce::String (entry.wordCount) + " words";
-        if (entry.language.isNotEmpty()) info << "   ·   " << entry.language.toUpperCase();
-        if (entry.model.isNotEmpty())    info << "   ·   " << entry.model;
+        juce::String info = relativeTime (entry.timestamp) + "   " + ui::middot() + "   " + formatDuration (entry.durationSeconds)
+                          + "   " + ui::middot() + "   " + juce::String (entry.wordCount) + " words";
+        if (entry.language.isNotEmpty()) info << "   " + ui::middot() + "   " << entry.language.toUpperCase();
+        if (entry.model.isNotEmpty())    info << "   " + ui::middot() + "   " << entry.model;
 
         g.setColour (Colours::textMuted);
         g.setFont (Fonts::small());
@@ -124,7 +124,7 @@ juce::String HistoryPage::pageSubtitle() const
 {
     const auto& h = controller.getHistory();
     if (! h.isPersistenceEnabled()) return "History is turned off - nothing is being saved";
-    return juce::String (h.totalDictations()) + " saved on this PC  ·  raw audio is never stored";
+    return juce::String (h.totalDictations()) + " saved on this PC  " + ui::middot() + "  raw audio is never stored";
 }
 
 void HistoryPage::refresh()

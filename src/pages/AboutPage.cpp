@@ -59,15 +59,15 @@ void AboutPage::paintOverChildren (juce::Graphics& g)
         g.drawText ("Your voice. Anywhere you type.", r.removeFromTop (24), juce::Justification::centredLeft);
         g.setColour (Colours::textMuted);
         g.setFont (Fonts::small());
-        g.drawText ("Offline speech recognition by whisper.cpp  ·  Built with JUCE", r.removeFromTop (22), juce::Justification::centredLeft);
+        g.drawText ("Offline speech recognition by whisper.cpp  " + ui::middot() + "  Built with JUCE", r.removeFromTop (22), juce::Justification::centredLeft);
     }
 
     auto paragraphList = [&g] (juce::Rectangle<int> r, const juce::StringArray& items, bool numbered)
     {
         for (int i = 0; i < items.size(); ++i)
         {
-            const int lines = items[i].length() > 70 ? 2 : 1;
-            auto row = r.removeFromTop (lines == 2 ? 44 : 28);
+            const int lines = numbered ? 2 : (items[i].length() > 70 ? 2 : 1);
+            auto row = r.removeFromTop (numbered ? 42 : (lines == 2 ? 46 : 30));
             auto marker = row.removeFromLeft (28);
 
             if (numbered)

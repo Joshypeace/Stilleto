@@ -70,6 +70,10 @@ public:
     /** Stops recording, cancels inference, waits for workers and releases every OS resource. */
     void shutdown();
 
+    /** Developer aid (--snapshot <dir>): renders every page off-screen to PNG files without
+        registering the hotkey, creating the tray icon or showing a window. */
+    void renderSnapshots (const juce::File& directory, std::function<void()> onDone);
+
     // Dictation -----------------------------------------------------------------------------
     void toggleDictation (Source source);
     void startDictation (Source source);
@@ -173,6 +177,7 @@ private:
     bool quitConfirmationOpen = false;
     bool hotkeyHeldBeforeCapture = false;
     bool choosingModel = false;
+    bool snapshotMode = false;
 
     std::shared_ptr<std::atomic<bool>> alive = std::make_shared<std::atomic<bool>> (true);
 };

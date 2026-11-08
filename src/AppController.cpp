@@ -89,6 +89,50 @@ void AppController::initialise (bool startHidden)
     startTimerHz (10);
 }
 
+void AppController::renderSnapshots (const juce::File& directory, std::function<void()> onDone)
+{
+    snapshotMode = true;
+    ui::Motion::setReduced (true);   // render final states, not mid-animation frames
+    refreshMicrophones();
+    models.rescan();
+    if (activeModel == juce::File())
+        loadActiveModel();
+
+    mainWindow = std::make_unique<MainWindow> (*this);
+    mainWindow->setSize (1280, 800);
+    directory.createDirectory();
+
+    // Asynchronous so the model can finish loading and pages can lay out between captures.
+    auto step = std::make_shared<std::function<void (int)>>();
+    *step = [this, directory, onDone, step, token = alive] (int index)
+    {
+        if (! token->load()) return;
+
+        static const char* names[] = { "overview", "dictation", "history", "models", "settings", "about" };
+        if (index >= 6) { onDone(); return; }
+
+        if (index == 0 && modelState == ModelStatus::Loading)
+        {
+            juce::Timer::callAfterDelay (100, [step] { (*step) (0); });
+            return;
+        }
+
+        mainWindow->showPage (static_cast<Page> (index));
+        juce::Timer::callAfterDelay (250, [this, directory, step, index, token]
+        {
+            if (! token->load()) return;
+            auto* content = mainWindow->getContentComponent();
+            const auto image = content->createComponentSnapshot (content->getLocalBounds(), true, 1.0f);
+            const auto file = directory.getChildFile (juce::String (names[index]) + ".png");
+            file.deleteFile();
+            if (auto stream = file.createOutputStream())
+                juce::PNGImageFormat().writeImageToStream (image, *stream);
+            (*step) (index + 1);
+        });
+    };
+    (*step) (0);
+}
+
 void AppController::shutdown()
 {
     if (shuttingDown)
@@ -107,7 +151,7 @@ void AppController::shutdown()
     hotkey.unregister();
     foreground.reset();
 
-    if (mainWindow != nullptr)
+    if (mainWindow != nullptr && ! snapshotMode)
         settings.setWindowState (mainWindow->getWindowStateAsString());
 
     widget.reset();

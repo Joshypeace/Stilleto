@@ -262,7 +262,7 @@ void OverviewPage::paintOverChildren (juce::Graphics& g)
                 const auto& e = entries.front();
                 g.setColour (Colours::textMuted);
                 g.setFont (Fonts::small());
-                g.drawText (relativeTime (e.timestamp) + "  ·  " + juce::String (e.wordCount) + " words  ·  " + e.insertionNote,
+                g.drawText (relativeTime (e.timestamp) + "  " + ui::middot() + "  " + juce::String (e.wordCount) + " words  " + ui::middot() + "  " + e.insertionNote,
                             meta, juce::Justification::centredLeft, true);
             }
         }
@@ -303,7 +303,7 @@ void OverviewPage::paintOverChildren (juce::Graphics& g)
                 g.drawText (e.text, row.removeFromTop (22), juce::Justification::bottomLeft, true);
                 g.setColour (Colours::textMuted);
                 g.setFont (Fonts::make (11.0f));
-                g.drawText (relativeTime (e.timestamp) + "  ·  " + juce::String (e.wordCount) + " words", row.removeFromTop (18),
+                g.drawText (relativeTime (e.timestamp) + "  " + ui::middot() + "  " + juce::String (e.wordCount) + " words", row.removeFromTop (18),
                             juce::Justification::topLeft, true);
             }
         }

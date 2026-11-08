@@ -381,7 +381,7 @@ void SettingsPage::loadValues()
     {
         if (m.status != ModelFileStatus::Valid) continue;
         ui.modelFiles.add (m.file);
-        ui.model.addItem (m.displayName + "  ·  " + m.file.getFileName(), modelId);
+        ui.model.addItem (m.displayName + "  " + stilleto::ui::middot() + "  " + m.file.getFileName(), modelId);
         if (m.file == controller.activeModelFile())
             ui.model.setSelectedId (modelId, juce::dontSendNotification);
         ++modelId;
@@ -437,7 +437,7 @@ void SettingsPage::setMonitoring (bool on)
         {
             content->testMic.setButtonText ("Stop test");
             content->meter.active = true;
-            content->deviceStatus.setText (recorder.currentDeviceName() + "  ·  " + juce::String (recorder.currentSampleRate(), 0) + " Hz",
+            content->deviceStatus.setText (recorder.currentDeviceName() + "  " + stilleto::ui::middot() + "  " + juce::String (recorder.currentSampleRate(), 0) + " Hz",
                                            juce::dontSendNotification);
             startTimerHz (30);
         }
@@ -489,7 +489,7 @@ void SettingsPage::confirmClearHistory()
 void SettingsPage::resized()
 {
     viewport.setBounds (getLocalBounds().reduced (Metrics::pagePadding - 4, Metrics::pagePadding - 8));
-    const int width = juce::jmin (920, viewport.getWidth() - viewport.getScrollBarThickness() - 8);
+    const int width = viewport.getWidth() - viewport.getScrollBarThickness() - 8;
     content->setSize (width, content->layout (width));
 }
 
