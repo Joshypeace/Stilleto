@@ -182,7 +182,8 @@ void DictationPage::paintOverChildren (juce::Graphics& g)
             break;
         case DictationState::Completed:
             big = s.inserted ? "Inserted" : "Transcribed";
-            line1 = s.inserted ? "Typed into " + s.targetName : s.insertionNote;
+            line1 = s.inserted ? "Typed into " + s.targetName + (s.clipboardNote.isNotEmpty() ? ". " + s.clipboardNote : juce::String())
+                               : s.insertionNote;
             line2 = juce::String (s.transcript.isEmpty() ? 0 : juce::StringArray::fromTokens (s.transcript, true).size()) + " words from "
                     + formatDuration (s.recordedSeconds) + " of audio";
             bigColour = Colours::success;

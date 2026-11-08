@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -382,6 +383,42 @@ TEST_CASE ("insert: long text uses the clipboard and restores previous contents"
     CHECK (r2.methodUsed == InsertMethod::UnicodeKeys);
     CHECK_EQ (notepad.text(), medium);
     CHECK_EQ (clipboardText(), original);
+}
+
+TEST_CASE ("insert: a clipboard with many formats is restored and the user is told about losses")
+{
+    NotepadSession notepad ("manyformats");
+    REQUIRE (notepad.ok());
+
+    // Text plus 20 private formats (> 16): only priority formats are captured, so a notice is due.
+    const std::string original = "Rich clipboard from another application";
+    REQUIRE (OpenClipboard (nullptr));
+    EmptyClipboard();
+    const auto wide = text::utf8ToUtf16 (original) + u'\0';
+    auto put = [] (UINT format, const void* data, size_t size)
+    {
+        HGLOBAL m = GlobalAlloc (GMEM_MOVEABLE, size);
+        std::memcpy (GlobalLock (m), data, size);
+        GlobalUnlock (m);
+        SetClipboardData (format, m);
+    };
+    put (CF_UNICODETEXT, wide.data(), wide.size() * sizeof (char16_t));
+    for (int i = 0; i < 20; ++i)
+    {
+        const auto name = L"StilletoTestFormat" + std::to_wstring (i);
+        const int value = i;
+        put (RegisterClipboardFormatW (name.c_str()), &value, sizeof (value));
+    }
+    CloseClipboard();
+
+    const auto target = TextInserter::captureForeground();
+    REQUIRE (target.isValid());
+    const auto r = insertAndSettle ("Pasted while the clipboard held many formats.", target);
+    CHECK (r.succeeded());
+    CHECK (! r.clipboardRestored);
+    CHECK (! r.clipboardNote.empty());
+    CHECK_EQ (clipboardText(), original);   // the text itself is always restored
+    notepad.clear();
 }
 
 TEST_CASE ("insert: closed targets and own windows are refused")

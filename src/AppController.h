@@ -44,6 +44,7 @@ public:
         juce::String detail;            // explanatory line / error message
         juce::String transcript;        // last successful transcript
         juce::String insertionNote;     // "Inserted into Notepad", "Not inserted: ..."
+        juce::String clipboardNote;     // set when the user's previous clipboard was not fully restored
         bool inserted = false;
         juce::String targetName;        // window the text goes to
         double recordedSeconds = 0.0;

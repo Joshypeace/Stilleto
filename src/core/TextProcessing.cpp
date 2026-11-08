@@ -226,12 +226,31 @@ std::string lowerAscii (const std::string& s)
     return out;
 }
 
-bool isFiller (const std::string& lowerCore)
+bool isAllUpperAscii (const std::string& s)
 {
+    int letters = 0;
+    for (unsigned char c : s)
+    {
+        if (std::islower (c)) return false;
+        if (std::isupper (c)) ++letters;
+    }
+    return letters >= 2;
+}
+
+/** previousCore: the word before, if any. Abbreviations ("ER", "UM") and units ("50 mm") are words. */
+bool isFiller (const std::string& core, const std::string& previousCore)
+{
+    if (isAllUpperAscii (core))
+        return false;
+
+    const auto lower = lowerAscii (core);
+    if ((lower == "mm" || lower == "m") && ! previousCore.empty() && std::isdigit (static_cast<unsigned char> (previousCore.back())))
+        return false;
+
     static const char* fillers[] = { "um", "umm", "ummm", "uh", "uhh", "uhm", "er", "err", "erm", "ah", "ahh",
                                      "eh", "hmm", "hmmm", "hm", "mm", "mmm", "mhm" };
     for (const char* f : fillers)
-        if (lowerCore == f) return true;
+        if (lower == f) return true;
     return false;
 }
 
@@ -275,6 +294,11 @@ std::string collapseHyphenStutter (const std::string& core)
             return last;
         // "w-what": a lowercase single letter that is a strict prefix of a longer lowercase word.
         // Capitalised pairs ("D-Day", "T-test", "S-shaped") are real compounds.
+        // Established words that look like stutters stay ("t-test" in statistics, "b-boy").
+        static const char* realWords[] = { "t-test", "b-boy", "b-boys", "t-tests", "k-kill" };
+        for (const char* w : realWords)
+            if (lowerAscii (core) == w) return core;
+
         if (first.size() == 1 && std::islower (static_cast<unsigned char> (first[0])) && isAllLowerAscii (last)
             && last.size() > 1 && last[0] == first[0])
             return last;
@@ -315,6 +339,32 @@ void capitaliseFirstLetter (std::string& s)
         else if (static_cast<unsigned char> (c) >= 0x80)
             return;   // non-ASCII first letter: leave as is
 }
+/** "vitamin A a day", "the A A battery", "Chapter I, I explain": a single letter used as a grade,
+    name, vitamin or Roman numeral is a word, not a stammer. kept.back() is the first occurrence. */
+bool isLetterOrNumeral (const std::vector<Token>& kept, const Token& current)
+{
+    const auto& first = kept.back().core;
+    const bool midSentence = kept.size() >= 2 && ! endsSentence (kept[kept.size() - 2].trailing);
+
+    if (lowerAscii (first) == "a" || lowerAscii (first) == "an")
+    {
+        // Only "a a" / "an an" in lowercase is a stammer (sentence-initial "A a" too).
+        if (current.core != lowerAscii (current.core)) return true;
+        if (first == "A" && midSentence) return true;
+        return false;
+    }
+
+    if (first == "I" && midSentence)
+    {
+        // "Chapter I", "World War I", "Henry I": a capitalised word before a mid-sentence "I".
+        const auto& before = kept[kept.size() - 2];
+        const bool beforeStartsSentence = kept.size() < 3 || endsSentence (kept[kept.size() - 3].trailing);
+        if (! before.core.empty() && std::isupper (static_cast<unsigned char> (before.core[0])) && ! beforeStartsSentence
+            && before.core != "I")
+            return true;
+    }
+    return false;
+}
 } // namespace
 
 std::string removeDisfluencies (std::string_view input)
@@ -348,15 +398,31 @@ std::string removeDisfluencies (std::string_view input)
             t.core = collapseHyphenStutter (t.core);
             const auto lower = lowerAscii (t.core);
 
-            if (! t.core.empty() && isFiller (lower))
+            if (! t.core.empty() && isFiller (t.core, kept.empty() ? std::string() : kept.back().core))
             {
                 const bool startsSentence = kept.empty() || endsSentence (kept.back().trailing);
-                pendingLeading += t.leading;
+
+                // Closing quotes/brackets after the filler ("um," / "um)").
+                std::string closers;
+                for (char c : t.trailing)
+                    if (c == '"' || c == ')' || c == ']') closers += c;
+
+                if (! t.leading.empty() && ! closers.empty())
+                {
+                    // Fully wrapped filler ("um", (um)): drop the marks with it.
+                    closers.clear();
+                }
+                else
+                {
+                    pendingLeading += t.leading;
+                }
 
                 if (! kept.empty())
                 {
                     auto& prev = kept.back();
-                    if (endsSentence (t.trailing) && isSoftEnd (prev.trailing))
+                    if (! closers.empty())
+                        prev.trailing += closers;                                               // "Well, um," -> "Well,"
+                    else if (endsSentence (t.trailing) && isSoftEnd (prev.trailing))
                         prev.trailing = t.trailing.substr (t.trailing.find_first_of (".!?"));   // "fine, hmm." -> "fine."
                     else if (! prev.trailing.empty() && prev.trailing.back() == ',')
                         prev.trailing.pop_back();                                               // "was, uh, thinking"
@@ -373,7 +439,8 @@ std::string removeDisfluencies (std::string_view input)
 
             // Collapse a stammered word: same word, previous ends softly (no sentence break).
             if (! kept.empty() && ! t.core.empty() && t.leading.empty() && kept.back().leading.empty()
-                && isStammerWord (lower) && lowerAscii (kept.back().core) == lower && isSoftEnd (kept.back().trailing))
+                && isStammerWord (lower) && lowerAscii (kept.back().core) == lower && isSoftEnd (kept.back().trailing)
+                && ! isLetterOrNumeral (kept, t))
             {
                 kept.back().trailing = t.trailing;   // keep the first word's case, the last one's punctuation
                 continue;

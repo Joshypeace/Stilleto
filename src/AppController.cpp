@@ -503,10 +503,12 @@ void AppController::finishInsertion (const InsertResult& result, const juce::Str
 
     current.inserted = result.succeeded();
     current.insertionNote = toJuce (result.message);
-    if (! result.clipboardNote.empty())
-        current.insertionNote << " " << toJuce (result.clipboardNote);
+    current.clipboardNote = toJuce (result.clipboardNote);
+    if (! current.clipboardNote.isEmpty() && ! current.inserted)
+        current.insertionNote << " " << current.clipboardNote;
     history.updateInsertion (historyId, current.inserted,
                              current.inserted ? juce::String ("Inserted into " + current.targetName)
+                                                  + (current.clipboardNote.isEmpty() ? juce::String() : ". " + current.clipboardNote)
                                               : "Not inserted: " + current.insertionNote);
 
     log (juce::String ("Insertion ") + (result.succeeded() ? "succeeded" : "failed") + " via "

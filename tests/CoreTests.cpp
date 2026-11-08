@@ -137,6 +137,11 @@ TEST_CASE ("disfluency: punctuation, quotes and capitals survive filler removal"
     CHECK_EQ (text::removeDisfluencies ("Wait - um - okay."), std::string ("Wait - okay."));
     CHECK_EQ (text::removeDisfluencies ("I said no. No, no."), std::string ("I said no. No, no."));
     CHECK_EQ (text::removeDisfluencies ("The end. The the plan."), std::string ("The end. The plan."));
+    CHECK_EQ (text::removeDisfluencies ("Er, the ER is closed."), std::string ("The ER is closed."));
+    CHECK_EQ (text::removeDisfluencies ("\"Well, um,\" he said."), std::string ("\"Well,\" he said."));
+    CHECK_EQ (text::removeDisfluencies ("He said \"um\" a lot."), std::string ("He said a lot."));
+    CHECK_EQ (text::removeDisfluencies ("(um) maybe"), std::string ("Maybe"));
+    CHECK_EQ (text::removeDisfluencies ("Well I, I think so."), std::string ("Well I think so."));
 }
 
 TEST_CASE ("disfluency: legitimate text is preserved")
@@ -152,7 +157,12 @@ TEST_CASE ("disfluency: legitimate text is preserved")
                               "An S-shaped curve.", "Rate it 1-10.", "The score was 1-1.", "Call 555-555-5555.",
                               // Emphatic triples and digit sequences.
                               "No, no, no!", "Location, location, location.", "Ha ha ha", "My PIN is 7 7 7 2.",
-                              "really really really good", "uh-huh", "mm-hmm" })
+                              "really really really good", "uh-huh", "mm-hmm",
+                              // Review round 3: abbreviations, units, letters and numerals are words.
+                              "He went to the ER last night.", "I took him to the ER.", "Use a 50 mm lens.",
+                              "The gap is 3 mm wide.", "UM is a great school.", "Take vitamin A a day.",
+                              "I got an A, a real A.", "In Chapter I, I explain the method.", "The A A battery is dead.",
+                              "Run a t-test on the results.", "He is a b-boy." })
         CHECK_EQ (text::removeDisfluencies (keep), std::string (keep));
 
     text::CleanupOptions off;
