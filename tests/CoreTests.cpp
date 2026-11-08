@@ -5,6 +5,8 @@
 #include "audio/AudioResampler.h"
 #include "core/DictationState.h"
 #include "core/HotkeySpec.h"
+#include "core/Sha1.h"
+#include "core/SpeechDetection.h"
 #include "core/TextProcessing.h"
 #include "transcription/ModelCatalog.h"
 
@@ -34,7 +36,7 @@ TEST_CASE ("state machine: overlapping work is rejected")
     CHECK (! isValidTransition (S::Inserting, S::Recording));
     CHECK (! isValidTransition (S::Recording, S::Recording));
     CHECK (! isValidTransition (S::Idle, S::Processing));
-    CHECK (! isValidTransition (S::Idle, S::Inserting));
+    CHECK (isValidTransition (S::Idle, S::Inserting));       // re-insert a history entry
     CHECK (! isValidTransition (S::Inserting, S::Idle));   // insertion cannot be abandoned half way
     CHECK (! canStartRecording (S::Processing));
     CHECK (! canStartRecording (S::Inserting));
@@ -236,6 +238,53 @@ TEST_CASE ("models: catalog and file inspection")
 
     std::filesystem::remove_all (dir);
     CHECK_EQ (formatBytes (142ull * 1024 * 1024), std::string ("142 MB"));
+}
+
+//==============================================================================================
+// SHA-1 (model download verification)
+TEST_CASE ("sha1: standard test vectors")
+{
+    CHECK_EQ (Sha1::ofString (""), std::string ("da39a3ee5e6b4b0d3255bfef95601890afd80709"));
+    CHECK_EQ (Sha1::ofString ("abc"), std::string ("a9993e364706816aba3e25717850c26c9cd0d89d"));
+    CHECK_EQ (Sha1::ofString ("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+              std::string ("84983e441c3bd26ebaae4aa1f95129e5e54670f1"));
+
+    std::string million (1000000, 'a');
+    CHECK_EQ (Sha1::ofString (million), std::string ("34aa973cd4c4daa4f61eeb2bdbad27316534016f"));
+}
+
+//==============================================================================================
+// Speech gate
+TEST_CASE ("speech: silence and noise are rejected, speech-like audio passes")
+{
+    std::vector<float> silence (16000 * 2, 0.0f);
+    const auto s = analyseSpeech (silence, 16000.0);
+    CHECK (s.isDigitalSilence());
+    CHECK (! s.hasSpeech());
+
+    // Low room noise (-60 dBFS) with no events.
+    std::vector<float> noise (16000 * 2);
+    unsigned seed = 1;
+    for (auto& v : noise) { seed = seed * 1103515245u + 12345u; v = ((seed >> 16) / 32768.0f - 1.0f) * 0.001f; }
+    CHECK (! analyseSpeech (noise, 16000.0).hasSpeech());
+
+    // Same noise with 0.6 s of a loud modulated tone in the middle.
+    auto speech = noise;
+    for (std::size_t i = 12000; i < 12000 + 9600; ++i)
+        speech[i] += 0.2f * static_cast<float> (std::sin (i * 0.05) * (0.6 + 0.4 * std::sin (i * 0.002)));
+    const auto a = analyseSpeech (speech, 16000.0);
+    CHECK (a.hasSpeech());
+    CHECK (a.voicedSeconds > 0.4);
+}
+
+TEST_CASE ("speech: common whisper hallucinations")
+{
+    CHECK (isCommonHallucination ("You"));
+    CHECK (isCommonHallucination (" Thank you. "));
+    CHECK (isCommonHallucination ("Thanks for watching!"));
+    CHECK (isCommonHallucination (""));
+    CHECK (! isCommonHallucination ("Thank you for the update, see you tomorrow."));
+    CHECK (! isCommonHallucination ("Send the report"));
 }
 
 int main (int argc, char** argv)

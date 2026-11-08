@@ -9,12 +9,12 @@ bool isValidTransition (DictationState from, DictationState to) noexcept
 
     switch (from)
     {
-        case S::Idle:       return to == S::Recording || to == S::Error;
+        case S::Idle:       return to == S::Recording || to == S::Inserting || to == S::Error;   // Inserting = re-insert from history
         case S::Recording:  return to == S::Processing || to == S::Idle || to == S::Error;   // Idle = cancelled
         case S::Processing: return to == S::Inserting || to == S::Completed || to == S::Idle || to == S::Error;
         case S::Inserting:  return to == S::Completed || to == S::Error;
         case S::Completed:  return to == S::Idle || to == S::Recording || to == S::Inserting || to == S::Error;
-        case S::Error:      return to == S::Idle || to == S::Recording || to == S::Error;
+        case S::Error:      return to == S::Idle || to == S::Recording || to == S::Inserting || to == S::Error;
     }
 
     return false;

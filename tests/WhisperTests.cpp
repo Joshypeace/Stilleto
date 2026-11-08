@@ -3,7 +3,10 @@
 #include "TestFramework.h"
 
 #include "audio/AudioResampler.h"
+#include "core/Sha1.h"
+#include "core/SpeechDetection.h"
 #include "core/TextProcessing.h"
+#include "transcription/ModelCatalog.h"
 #include "transcription/WhisperEngine.h"
 
 #include <algorithm>
@@ -196,6 +199,23 @@ TEST_CASE ("whisper: silence produces no words")
     const auto clean = text::cleanTranscript (result.text, {});
     std::printf ("    silence -> \"%s\"\n", clean.c_str());
     CHECK (text::countWords (clean) <= 2);   // whisper may hallucinate a token on pure silence
+}
+
+TEST_CASE ("models: downloaded base.en matches the upstream SHA-1")
+{
+    if (! modelAvailable()) { std::printf ("    SKIPPED\n"); return; }
+    const auto digest = Sha1::ofFile (STILLETO_TEST_MODEL);
+    REQUIRE (digest.has_value());
+    CHECK_EQ (*digest, std::string (ModelCatalog::findById ("base.en")->sha1));
+}
+
+TEST_CASE ("speech: the JFK sample passes the speech gate")
+{
+    WavData wav;
+    REQUIRE (readWav (STILLETO_TEST_WAV, wav));
+    const auto a = analyseSpeech (wav.mono, wav.sampleRate);
+    std::printf ("    peak=%.3f rms=%.4f floor=%.5f voiced=%.2fs\n", a.peak, a.rms, a.noiseFloor, a.voicedSeconds);
+    CHECK (a.hasSpeech());
 }
 
 int main (int argc, char** argv)

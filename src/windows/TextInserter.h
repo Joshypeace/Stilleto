@@ -45,6 +45,11 @@ struct InsertOptions
     bool restoreClipboard = true;
     bool newlinesAsShiftEnter = true;       // Enter alone would send the message in chat apps
     bool appendTrailingSpace = false;
+
+    // When the target is no longer the foreground window: false = do nothing (hotkey dictation
+    // must never pull focus back from wherever the user went); true = bring the target forward
+    // first (the user explicitly clicked Insert in Stilleto).
+    bool activateTarget = false;
 };
 
 struct InsertResult

@@ -70,6 +70,10 @@ add_library(StilletoCore STATIC
     src/core/HotkeySpec.cpp
     src/core/TextProcessing.h
     src/core/TextProcessing.cpp
+    src/core/Sha1.h
+    src/core/Sha1.cpp
+    src/core/SpeechDetection.h
+    src/core/SpeechDetection.cpp
     src/audio/AudioResampler.h
     src/audio/AudioResampler.cpp
     src/transcription/WhisperEngine.h
@@ -79,7 +83,7 @@ add_library(StilletoCore STATIC
 
 target_include_directories(StilletoCore PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(StilletoCore PUBLIC whisper)
-target_compile_definitions(StilletoCore PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+target_compile_definitions(StilletoCore PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
 target_compile_options(StilletoCore PRIVATE /W4 /permissive- /utf-8)
 
 #-----------------------------------------------------------------------------------------------
@@ -97,6 +101,7 @@ add_library(StilletoPlatform STATIC
     src/windows/NativeWindow.cpp)
 
 target_link_libraries(StilletoPlatform PUBLIC StilletoCore user32 dwmapi advapi32 shell32)
+target_compile_definitions(StilletoPlatform PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
 target_compile_options(StilletoPlatform PRIVATE /W4 /permissive- /utf-8)
 
 if(STILLETO_BUILD_APP)

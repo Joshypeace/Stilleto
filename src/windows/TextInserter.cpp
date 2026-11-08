@@ -520,10 +520,12 @@ InsertResult TextInserter::insert (const std::u16string& rawText, const Insertio
         return result;
     }
 
-    if (! ensureForeground (target.window))
+    if (options.activateTarget ? ! ensureForeground (target.window) : GetForegroundWindow() != target.window)
     {
         result.status = InsertResult::Status::TargetChanged;
-        result.message = "The target window is no longer active, so nothing was typed. The transcript is available to copy.";
+        result.message = options.activateTarget
+                           ? "Windows did not allow switching to the target window, so nothing was typed. The transcript is available to copy."
+                           : "You switched to another window before the text was ready, so nothing was typed. The transcript is available to copy.";
         return result;
     }
 
@@ -541,8 +543,8 @@ InsertResult TextInserter::insert (const std::u16string& rawText, const Insertio
     {
         result = pasteViaClipboard (payload, target.window, options);
 
-        // Clipboard locked by another app: typing is a safe fallback.
-        if (result.status == InsertResult::Status::ClipboardUnavailable)
+        // Clipboard locked by another app: in Automatic mode, paced typing is a safe fallback.
+        if (result.status == InsertResult::Status::ClipboardUnavailable && options.method == InsertMethod::Automatic)
             result = typeUnicode (payload, target.window, options);
     }
     else
