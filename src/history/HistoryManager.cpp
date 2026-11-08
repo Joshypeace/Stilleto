@@ -37,7 +37,8 @@ bool HistoryManager::load (juce::String& error)
         error = moved ? "The transcription history file could not be read. It was kept as " + backup.getFullPathName()
                       : "The transcription history file could not be read: " + storage.getFullPathName();
         if (! moved)
-            persistenceEnabled = false;   // never overwrite a file we could not preserve
+            writesBlocked = true;   // never overwrite a file we could not preserve (survives toggling the setting)
+        loadProblem = error;
         return false;
     }
 
@@ -67,10 +68,15 @@ void HistoryManager::setPersistenceEnabled (bool enabled)
     persistenceEnabled = enabled;
 }
 
+bool HistoryManager::isPersistenceEnabled() const noexcept
+{
+    return persistenceEnabled && ! writesBlocked;
+}
+
 void HistoryManager::add (HistoryEntry entry)
 {
     // With history off nothing is kept, not even in memory, so the list always mirrors the file.
-    if (! persistenceEnabled)
+    if (! isPersistenceEnabled())
         return;
 
     if (entry.id.isEmpty())
@@ -92,6 +98,12 @@ bool HistoryManager::remove (const juce::String& id)
 
     items.erase (it);
 
+    if (writesBlocked)
+    {
+        notify();
+        return true;
+    }
+
     // Deleting must remove the stored copy even if persistence was switched off afterwards.
     {
         std::lock_guard lock (writeMutex);
@@ -107,6 +119,11 @@ bool HistoryManager::remove (const juce::String& id)
 void HistoryManager::clear()
 {
     items.clear();
+    if (writesBlocked)
+    {
+        notify();
+        return;
+    }
     {
         std::lock_guard lock (writeMutex);
         pendingJson.reset();
@@ -205,6 +222,8 @@ juce::String HistoryManager::serialise() const
 
 void HistoryManager::scheduleWrite()
 {
+    if (writesBlocked)
+        return;
     {
         std::lock_guard lock (writeMutex);
         pendingJson = serialise();

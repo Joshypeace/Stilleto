@@ -285,17 +285,26 @@ bool isSynthesisedFormat (UINT format)
     }
 }
 
-/** The common HGLOBAL formats worth restoring. Snapshotting only these avoids forcing the source
-    application to render every delayed-rendered format it advertises (Office can offer dozens). */
-bool isRestorableFormat (UINT format)
+/** Formats always worth restoring, including the main application formats (Excel ranges with
+    formulas, Explorer cut/copy). Used when the source advertises many formats, so the source is
+    not forced to render dozens of delayed-rendered representations. */
+bool isPriorityFormat (UINT format)
 {
-    static const UINT html = RegisterClipboardFormatW (L"HTML Format");
-    static const UINT rtf  = RegisterClipboardFormatW (L"Rich Text Format");
-    static const UINT png  = RegisterClipboardFormatW (L"PNG");
+    static const UINT named[] = {
+        RegisterClipboardFormatW (L"HTML Format"), RegisterClipboardFormatW (L"Rich Text Format"),
+        RegisterClipboardFormatW (L"PNG"), RegisterClipboardFormatW (L"Biff12"), RegisterClipboardFormatW (L"Biff8"),
+        RegisterClipboardFormatW (L"XML Spreadsheet"), RegisterClipboardFormatW (L"Csv"),
+        RegisterClipboardFormatW (L"Shell IDList Array"), RegisterClipboardFormatW (L"Preferred DropEffect"),
+        RegisterClipboardFormatW (L"FileGroupDescriptorW"), RegisterClipboardFormatW (L"FileNameW")
+    };
 
-    return format == CF_UNICODETEXT || format == CF_LOCALE || format == CF_HDROP || format == CF_DIB
-        || format == CF_DIBV5 || format == html || format == rtf || format == png;
+    if (format == CF_UNICODETEXT || format == CF_LOCALE || format == CF_HDROP || format == CF_DIB || format == CF_DIBV5)
+        return true;
+    return std::find (std::begin (named), std::end (named), format) != std::end (named);
 }
+
+/** Up to this many formats are all captured; beyond it only priority formats are. */
+constexpr int captureEverythingLimit = 16;
 
 ClipboardSnapshot captureClipboard()   // clipboard must be open
 {
@@ -303,14 +312,20 @@ ClipboardSnapshot captureClipboard()   // clipboard must be open
     constexpr std::size_t maxTotalBytes = 64u * 1024u * 1024u;
     std::size_t total = 0;
 
+    int advertised = 0;
+    for (UINT format = EnumClipboardFormats (0); format != 0; format = EnumClipboardFormats (format))
+        if (! isSynthesisedFormat (format))
+            ++advertised;
+    const bool captureAll = advertised <= captureEverythingLimit;
+
     for (UINT format = EnumClipboardFormats (0); format != 0; format = EnumClipboardFormats (format))
     {
-        if (isSynthesisedFormat (format))
+        if (isSynthesisedFormat (format) || format == CF_OWNERDISPLAY || (format >= CF_GDIOBJFIRST && format <= CF_GDIOBJLAST))
             continue;
 
-        if (! isRestorableFormat (format))
+        if (! captureAll && ! isPriorityFormat (format))
         {
-            snapshot.complete = false;   // reported honestly as "clipboard not fully restored"
+            snapshot.complete = false;   // surfaced to the user via InsertResult::clipboardNote
             continue;
         }
 
@@ -471,6 +486,12 @@ InsertResult pasteViaClipboard (const std::u16string& text, HWND target, const I
         {
             restoreSnapshot (snapshot, result);
             CloseClipboard();
+            if (! result.clipboardRestored)
+                result.clipboardNote = "Your previous clipboard was restored, but some application-specific formats could not be kept.";
+        }
+        else if (GetClipboardSequenceNumber() == ourSequence)
+        {
+            result.clipboardNote = "Your previous clipboard could not be restored because another application was using it.";
         }
     }
 

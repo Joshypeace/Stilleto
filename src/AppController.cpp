@@ -406,7 +406,8 @@ void AppController::handleTranscription (const WhisperTranscriber::Result& r)
     text::CleanupOptions cleanup;
     cleanup.tidyPunctuation = settings.tidyPunctuation();
     cleanup.paragraphPerSegment = settings.paragraphPerSegment();
-    cleanup.removeDisfluencies = settings.removeDisfluencies();
+    // The filler and stammer rules are English ("um" and "er" are real words in German and Dutch).
+    cleanup.removeDisfluencies = settings.removeDisfluencies() && (r.language.empty() || r.language == "en");
     const auto cleaned = toJuce (text::cleanTranscript (r.rawText, cleanup));
 
     if (cleaned.isEmpty())
@@ -502,6 +503,8 @@ void AppController::finishInsertion (const InsertResult& result, const juce::Str
 
     current.inserted = result.succeeded();
     current.insertionNote = toJuce (result.message);
+    if (! result.clipboardNote.empty())
+        current.insertionNote << " " << toJuce (result.clipboardNote);
     history.updateInsertion (historyId, current.inserted,
                              current.inserted ? juce::String ("Inserted into " + current.targetName)
                                               : "Not inserted: " + current.insertionNote);
@@ -891,7 +894,10 @@ void AppController::timerCallback()
             lastCapturedSamples = captured;
             lastCaptureProgressAt = now;
         }
-        if (recorder.deviceFailed() || now - lastCaptureProgressAt > 1500)
+        // Allow a few seconds for the first samples (Bluetooth headsets switch profile slowly),
+        // then expect a steady stream.
+        const bool stalled = captured == 0 ? now - lastCaptureProgressAt > 5000 : now - lastCaptureProgressAt > 1500;
+        if (recorder.deviceFailed() || stalled)
         {
             refreshMicrophones();
             setError ("Microphone disconnected", "The microphone stopped delivering audio, so the recording was discarded. "

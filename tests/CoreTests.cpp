@@ -108,7 +108,7 @@ TEST_CASE ("text: segments join and punctuation is tidied")
 
 TEST_CASE ("disfluency: fillers are removed with their commas")
 {
-    CHECK_EQ (text::removeDisfluencies ("Um, so I think we should go."), std::string ("so I think we should go."));
+    CHECK_EQ (text::removeDisfluencies ("Um, so I think we should go."), std::string ("So I think we should go."));
     CHECK_EQ (text::removeDisfluencies ("I was, uh, thinking about it."), std::string ("I was thinking about it."));
     CHECK_EQ (text::removeDisfluencies ("We can, um, erm, maybe meet."), std::string ("We can maybe meet."));
     CHECK_EQ (text::removeDisfluencies ("That is fine, hmm."), std::string ("That is fine."));
@@ -126,14 +126,33 @@ TEST_CASE ("disfluency: stutters collapse")
     CHECK_EQ (text::removeDisfluencies ("I I I think the the plan works."), std::string ("I think the plan works."));
     CHECK_EQ (text::removeDisfluencies ("I, I, I think so."), std::string ("I think so."));
     CHECK_EQ (text::removeDisfluencies ("We we we need it."), std::string ("We need it."));
-    CHECK_EQ (text::removeDisfluencies ("really really really good"), std::string ("really good"));
+    CHECK_EQ (text::removeDisfluencies ("And and then we left."), std::string ("And then we left."));
+}
+
+TEST_CASE ("disfluency: punctuation, quotes and capitals survive filler removal")
+{
+    CHECK_EQ (text::removeDisfluencies ("Is that right? Uh."), std::string ("Is that right?"));
+    CHECK_EQ (text::removeDisfluencies ("Really? Um, yes."), std::string ("Really? Yes."));
+    CHECK_EQ (text::removeDisfluencies ("\"Um, hello,\" she said."), std::string ("\"Hello,\" she said."));
+    CHECK_EQ (text::removeDisfluencies ("Wait - um - okay."), std::string ("Wait - okay."));
+    CHECK_EQ (text::removeDisfluencies ("I said no. No, no."), std::string ("I said no. No, no."));
+    CHECK_EQ (text::removeDisfluencies ("The end. The the plan."), std::string ("The end. The plan."));
 }
 
 TEST_CASE ("disfluency: legitimate text is preserved")
 {
     for (const char* keep : { "I know that that is true.", "She had had enough.", "It is very very good.",
                               "Please re-read the e-mail.", "A well-known co-op.", "No, no, I disagree.",
-                              "The end. The next chapter.", "Call me at 10-12.", "\xD0\x94\xD0\xB0, \xD0\xB4\xD0\xB0." })
+                              "The end. The next chapter.", "Call me at 10-12.", "\xD0\x94\xD0\xB0, \xD0\xB4\xD0\xB0.",
+                              // Review round 2: repeats across clauses and particles are real words.
+                              "I told you, you need to leave.", "If you want it, it is yours.", "Whatever you do, do it well.",
+                              "Log in in the settings.", "Turn it on on Monday.", "Will Will come?",
+                              // Reduplications, capitalised compounds and numbers.
+                              "It was so-so.", "That's a no-no.", "Bye-bye for now.", "The D-Day landings.", "Run a T-test.",
+                              "An S-shaped curve.", "Rate it 1-10.", "The score was 1-1.", "Call 555-555-5555.",
+                              // Emphatic triples and digit sequences.
+                              "No, no, no!", "Location, location, location.", "Ha ha ha", "My PIN is 7 7 7 2.",
+                              "really really really good", "uh-huh", "mm-hmm" })
         CHECK_EQ (text::removeDisfluencies (keep), std::string (keep));
 
     text::CleanupOptions off;

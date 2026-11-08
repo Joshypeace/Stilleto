@@ -75,6 +75,7 @@ struct InsertResult
     std::size_t unitsSent = 0;
     std::size_t unitsTotal = 0;
     bool clipboardRestored = false;
+    std::string clipboardNote;   // user-facing note when the previous clipboard was not fully restored
     std::string message;   // user-facing explanation
 
     [[nodiscard]] bool succeeded() const noexcept { return status == Status::Inserted; }

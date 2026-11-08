@@ -56,6 +56,24 @@ bool forceForeground (HWND hwnd)
 {
     for (int attempt = 0; attempt < 10; ++attempt)
     {
+        // Fallback once key-based activation has failed (e.g. the taskbar holds the foreground
+        // lock): a click on the test window's own title bar activates it like a real click.
+        if (attempt == 3)
+        {
+            RECT r {};
+            GetWindowRect (hwnd, &r);
+            SetCursorPos ((r.left + r.right) / 2, r.top + 12);
+            std::this_thread::sleep_for (100ms);
+            INPUT click[2] {};
+            click[0].type = click[1].type = INPUT_MOUSE;
+            click[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+            click[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+            SendInput (2, click, sizeof (INPUT));
+            std::this_thread::sleep_for (400ms);
+            if (GetForegroundWindow() == hwnd)
+                return true;
+        }
+
         INPUT unassigned[2] {};
         unassigned[0].type = unassigned[1].type = INPUT_KEYBOARD;
         unassigned[0].ki.wVk = unassigned[1].ki.wVk = 0xE8;

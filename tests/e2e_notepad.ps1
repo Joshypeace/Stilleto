@@ -10,7 +10,8 @@
   Do not type or click while it runs.
 #>
 param(
-    [string]$Exe = "$PSScriptRoot\..\out\build\vs2026\Stilleto_artefacts\Release\Stilleto.exe",
+    # Built by: cmake --preset vs2026-e2e; cmake --build --preset vs2026-e2e (test hooks ON, never ship)
+    [string]$Exe = "$PSScriptRoot\..\out\build\vs2026-e2e\Stilleto_artefacts\Release\Stilleto.exe",
     [string]$Wav = "$PSScriptRoot\..\external\whisper.cpp\samples\jfk.wav",
     [string]$Shots = "",
     [string]$Expect = "ask not what your country can do for you",   # regex the inserted text must match
@@ -37,6 +38,12 @@ public class E2E {
   public static void Key(byte vk, bool down) { keybd_event(vk, 0, down ? 0u : 2u, UIntPtr.Zero); }
   public static void Hotkey() { Key(0x11,true); Key(0x12,true); Key(0x20,true); Key(0x20,false); Key(0x12,false); Key(0x11,false); }
   public static void Nudge() { Key(0xE8,true); Key(0xE8,false); }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint f, int x, int y, uint d, UIntPtr e);
+  public static void ClickTitleBar(IntPtr h) {
+    RECT r; GetWindowRect(h, out r); SetCursorPos((r.L + r.R) / 2, r.T + 12); System.Threading.Thread.Sleep(100);
+    mouse_event(2, 0, 0, 0, UIntPtr.Zero); mouse_event(4, 0, 0, 0, UIntPtr.Zero); }
   public static string Title(IntPtr h) { var sb = new StringBuilder(512); GetWindowText(h, sb, 512); return sb.ToString(); }
   public static string EditorText(IntPtr window) {
     uint pid; uint tid = GetWindowThreadProcessId(window, out pid);
@@ -87,7 +94,11 @@ for ($i = 0; $i -lt 100 -and $notepad -eq [IntPtr]::Zero; $i++) {
     }
 }
 if ($notepad -eq [IntPtr]::Zero) { throw "Notepad window not found" }
-for ($i = 0; $i -lt 10 -and [E2E]::GetForegroundWindow() -ne $notepad; $i++) { [E2E]::Nudge(); [void][E2E]::SetForegroundWindow($notepad); Start-Sleep -Milliseconds 200 }
+for ($i = 0; $i -lt 10 -and [E2E]::GetForegroundWindow() -ne $notepad; $i++) {
+    if ($i -eq 3) { [E2E]::ClickTitleBar($notepad) }   # fallback when the taskbar holds the foreground lock
+    else { [E2E]::Nudge(); [void][E2E]::SetForegroundWindow($notepad) }
+    Start-Sleep -Milliseconds 300
+}
 Start-Sleep -Milliseconds 800
 Check "notepad in foreground" ([E2E]::GetForegroundWindow() -eq $notepad)
 

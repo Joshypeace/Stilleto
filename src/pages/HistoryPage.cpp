@@ -129,6 +129,7 @@ HistoryPage::~HistoryPage()
 juce::String HistoryPage::pageSubtitle() const
 {
     const auto& h = controller.getHistory();
+    if (h.loadError().isNotEmpty()) return h.loadError();
     if (! h.isPersistenceEnabled()) return "History is turned off - nothing is being saved";
     return juce::String (h.totalDictations()) + " saved on this PC  " + ui::middot() + "  "
            + (controller.getSettings().saveRecordings() ? "raw recordings are also being saved (Settings > Privacy)" : "raw audio is never stored");

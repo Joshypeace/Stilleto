@@ -136,7 +136,7 @@ Data locations:
 ```powershell
 ctest --preset vs2026-release               # unit + whisper integration tests
 out\build\vs2026\tests\Release\StilletoPlatformTests.exe   # hotkey + Notepad insertion (drives the desktop)
-# full app end to end (needs a build configured with -DSTILLETO_TEST_HOOKS=ON)
+# full app end to end (build it with: cmake --preset vs2026-e2e; cmake --build --preset vs2026-e2e)
 powershell -ExecutionPolicy Bypass -File tests\e2e_notepad.ps1
 ```
 
