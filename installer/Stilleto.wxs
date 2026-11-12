@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Stilleto setup (WiX Toolset v3). Built by scripts\Build-Release.ps1; do not build by hand.
+
+    Wizard: Welcome, License and notices, Install folder, Ready, Install, Finish (optional "Launch Stilleto").
+
+    Installs
+      - C:\Program Files\Stilleto\Stilleto.exe (static MSVC runtime: no redistributable needed)
+      - C:\Program Files\Stilleto\models\ggml-base.en.bin (the recommended model, so dictation works
+        offline immediately; Stilleto scans <exe folder>\models in addition to %LOCALAPPDATA%)
+      - Quick Start guide, Start Menu shortcuts, optional desktop shortcut, Settings > Apps entry
+
+    User data (%APPDATA%\Stilleto: settings, history, log; %LOCALAPPDATA%\Stilleto\models) is never
+    touched by setup or uninstall.
+
+    The UpgradeCode must never change: it is how a newer setup finds and replaces an older one.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <Product Id="*"
+           Name="Stilleto"
+           Language="1033"
+           Version="$(var.Version)"
+           Manufacturer="Maravian"
+           UpgradeCode="B83F123D-3C10-4D93-8A1C-65ACF2347863">
+
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"
+             Description="Stilleto $(var.Version) Setup"
+             Comments="Stilleto: offline, system-wide voice typing for Windows." />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Stilleto is already installed." Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- Windows 10 or later, 64-bit. -->
+    <Condition Message="Stilleto requires 64-bit Windows 10 or later.">
+      <![CDATA[Installed OR (VersionNT64 >= 603)]]>
+    </Condition>
+
+    <Icon Id="StilletoIcon.exe" SourceFile="$(var.AppExe)" />
+    <Property Id="ARPPRODUCTICON" Value="StilletoIcon.exe" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/Joshypeace/Stilleto" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Joshypeace/Stilleto" />
+    <Property Id="ARPCOMMENTS" Value="Offline, system-wide voice typing." />
+
+    <!-- Stilleto keeps running in the tray: close it before files are replaced or removed. -->
+    <util:CloseApplication Id="CloseStilleto" Target="Stilleto.exe" CloseMessage="yes" RebootPrompt="no"
+                           TerminateProcess="1" Timeout="5" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Stilleto">
+          <Directory Id="ModelsFolder" Name="models" />
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="StartMenuFolder" Name="Stilleto" />
+      </Directory>
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="StilletoExe" Guid="*" Win64="yes">
+        <File Id="StilletoExeFile" Source="$(var.AppExe)" KeyPath="yes" />
+      </Component>
+      <Component Id="QuickStart" Guid="*" Win64="yes">
+        <File Id="QuickStartFile" Name="Stilleto Quick Start.html" Source="$(var.QuickStart)" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="ModelsFolder">
+      <Component Id="BaseEnModel" Guid="*" Win64="yes">
+        <File Id="BaseEnModelFile" Name="ggml-base.en.bin" Source="$(var.ModelFile)" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="StartMenuFolder">
+      <Component Id="StartMenuShortcuts" Guid="EE56F24B-7A76-47F8-8478-6A0394A59C48">
+        <Shortcut Id="StilletoStartMenu" Name="Stilleto" Description="Offline voice typing for any application"
+                  Target="[INSTALLFOLDER]Stilleto.exe" WorkingDirectory="INSTALLFOLDER" Icon="StilletoIcon.exe" />
+        <Shortcut Id="QuickStartStartMenu" Name="Stilleto Quick Start" Target="[INSTALLFOLDER]Stilleto Quick Start.html" />
+        <Shortcut Id="UninstallStartMenu" Name="Uninstall Stilleto" Target="[System64Folder]msiexec.exe"
+                  Arguments="/x [ProductCode]" Description="Remove Stilleto from this PC" />
+        <RemoveFolder Id="RemoveStartMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Maravian\Stilleto" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="*">
+        <Condition>INSTALLDESKTOPSHORTCUT = 1</Condition>
+        <Shortcut Id="StilletoDesktop" Name="Stilleto" Target="[INSTALLFOLDER]Stilleto.exe"
+                  WorkingDirectory="INSTALLFOLDER" Icon="StilletoIcon.exe" />
+        <RegistryValue Root="HKCU" Key="Software\Maravian\Stilleto" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Property Id="INSTALLDESKTOPSHORTCUT" Value="1" />
+
+    <Feature Id="Main" Title="Stilleto" Level="1" Absent="disallow">
+      <ComponentRef Id="StilletoExe" />
+      <ComponentRef Id="QuickStart" />
+      <ComponentRef Id="BaseEnModel" />
+      <ComponentRef Id="StartMenuShortcuts" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+
+    <!-- UI: install-folder wizard with the license/notices page and a "Launch Stilleto" finish option.
+         The launch runs from the non-elevated UI process, so Stilleto starts at normal integrity
+         (an elevated Stilleto would behave differently from a normal launch). -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <UIRef Id="WixUI_InstallDir" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Stilleto" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#StilletoExeFile]" />
+    <CustomAction Id="LaunchStilleto" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchStilleto">
+        WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed
+      </Publish>
+    </UI>
+  </Product>
+</Wix>

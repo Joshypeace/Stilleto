@@ -131,6 +131,41 @@ Data locations:
 | Models | `%LOCALAPPDATA%\Stilleto\models` |
 | Raw recordings (opt-in only) | `%APPDATA%\Stilleto\recordings` |
 
+## Installing on another PC
+
+Download or copy one of the release packages produced by `scripts\Build-Release.ps1`:
+
+| Package | Use it when |
+| --- | --- |
+| `Stilleto-<version>-Setup.msi` | Normal install: Program Files, Start Menu and optional desktop shortcut, Settings > Apps uninstall entry. Needs administrator approval. |
+| `Stilleto-<version>-Portable.zip` | No install or admin rights: unzip anywhere and run `Stilleto.exe`. Keep the `models` folder next to it. |
+
+Both include the recommended `base.en` model, so dictation works offline immediately, and the
+*Stilleto Quick Start* guide.
+
+**Target PC requirements:** 64-bit Windows 10 or 11, a processor with AVX2 (Intel 4th generation /
+AMD Ryzen or newer; Stilleto shows a clear message otherwise), a microphone, and about 200 MB of disk
+space. No Visual C++ redistributable or other runtime is needed.
+
+**First launch:** the test builds are not code-signed, so Windows SmartScreen may say "Windows protected
+your PC". Choose *More info > Run anyway*. If dictation hears nothing, check *Windows Settings > Privacy &
+security > Microphone > Let desktop apps access your microphone*.
+
+**Uninstall:** *Settings > Apps > Stilleto*, or the Start Menu shortcut. Settings and history in
+`%APPDATA%\Stilleto` are kept; delete that folder to remove them.
+
+### Building the release packages
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\Build-Release.ps1
+```
+
+This builds Release with test hooks OFF, checks that the executable does not contain the test hook,
+verifies (or downloads) the model against its published SHA-1, and writes the MSI and zip to `dist\`
+with their SHA-256 hashes. It requires WiX Toolset v3.14
+(`-WixDir` if it is installed elsewhere). The version comes from `project(Stilleto VERSION ...)` in
+`CMakeLists.txt`; the MSI upgrades older versions in place.
+
 ## Tests
 
 ```powershell

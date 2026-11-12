@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stilleto Quick Start</title>
+<style>
+  :root { --bg:#0b0c0f; --surface:#171a20; --border:#2a2e37; --text:#f3f3f1; --muted:#a4a8b0; --dim:#727782;
+          --silver:#c7cbd2; --gold:#d6b36a; --gold-deep:#96743a; --ok:#75c99a; --warn:#e47f83; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.6 "Segoe UI", system-ui, sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:40px 20px 64px; }
+  header { display:flex; align-items:center; gap:18px; margin-bottom:28px; }
+  .mark { width:56px; height:56px; border-radius:15px; background:linear-gradient(135deg,#2a2f38,#0b0c0f);
+          border:1px solid #3a3f49; display:grid; place-items:center; }
+  .mark i { display:block; width:7px; height:34px; border-radius:4px 4px 0 0; clip-path:polygon(0 0,100% 0,100% 62%,50% 100%,0 62%);
+            background:linear-gradient(180deg,#ecd59c,var(--gold),var(--gold-deep)); }
+  h1 { margin:0; font-weight:300; font-size:32px; letter-spacing:.2px; }
+  .tag { color:var(--gold); margin:2px 0 0; }
+  h2 { font-size:17px; font-weight:600; margin:34px 0 10px; color:var(--text); }
+  p, li { color:var(--muted); }
+  strong { color:var(--text); font-weight:600; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 22px; margin:14px 0; }
+  ol.steps { counter-reset:s; list-style:none; padding:0; margin:0; }
+  ol.steps li { counter-increment:s; position:relative; padding:6px 0 6px 40px; }
+  ol.steps li::before { content:counter(s); position:absolute; left:0; top:7px; width:26px; height:26px; border-radius:50%;
+                        background:rgba(214,179,106,.14); color:var(--gold); font-weight:600; font-size:13px; display:grid; place-items:center; }
+  kbd { font:600 12.5px "Cascadia Mono", Consolas, monospace; color:var(--text); background:#1e222a; border:1px solid #3a3f49;
+        border-bottom-width:2px; border-radius:6px; padding:2px 7px; }
+  code { font:13px "Cascadia Mono", Consolas, monospace; color:var(--silver); background:#111318; padding:1px 6px; border-radius:5px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:8px 10px; border-top:1px solid var(--border); color:var(--muted); vertical-align:top; }
+  td:first-child { color:var(--text); white-space:nowrap; width:34%; }
+  .note { border-left:3px solid var(--gold); padding:4px 0 4px 14px; }
+  .warn { border-left-color:var(--warn); }
+  footer { margin-top:40px; color:var(--dim); font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="mark" aria-hidden="true"><i></i></div>
+    <div>
+      <h1>Stilleto</h1>
+      <p class="tag">Your voice. Anywhere you type.</p>
+    </div>
+  </header>
+
+  <p>Stilleto turns your speech into text in any Windows application: Notepad, Word, browsers, email, chat apps and code editors. Speech recognition runs <strong>entirely on this PC</strong>; no account or internet connection is needed.</p>
+
+  <h2>Dictate in four steps</h2>
+  <div class="card">
+    <ol class="steps">
+      <li>Click where you want the text to go, in any application.</li>
+      <li>Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd>. A small gold widget appears near the bottom of the screen: Stilleto is listening.</li>
+      <li>Speak naturally. Fillers ("um", "uh") and stammered starts ("I-I-I") are removed automatically.</li>
+      <li>Press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Space</kbd> again. After a moment the text appears at your cursor.</li>
+    </ol>
+  </div>
+  <p class="note">Stilleto keeps running in the system tray (bottom-right, near the clock) when you close its window, so the shortcut always works. Right-click the tray icon to start or stop dictation, pause the shortcut, open Settings or quit.</p>
+
+  <h2>First launch</h2>
+  <ul>
+    <li>The recommended speech model (<strong>Base, English</strong>) is installed with Stilleto, so you can dictate straight away.</li>
+    <li>If Windows asks, allow microphone access. You can check it under <em>Windows Settings &gt; Privacy &amp; security &gt; Microphone</em> ("Let desktop apps access your microphone" must be on).</li>
+    <li>Windows SmartScreen may warn about an unrecognised app because this test build is not code-signed. Choose <strong>More info &gt; Run anyway</strong>.</li>
+  </ul>
+
+  <h2>Useful settings</h2>
+  <div class="card">
+    <table>
+      <tr><td>Change the shortcut</td><td>Settings &gt; Keyboard shortcut &gt; Change</td></tr>
+      <tr><td>Choose a microphone</td><td>Settings &gt; Audio. Use <em>Test microphone</em> to check the level.</td></tr>
+      <tr><td>Other languages</td><td>Models &gt; download a <em>Multilingual</em> model, then Settings &gt; Transcription &gt; Language.</td></tr>
+      <tr><td>Better accuracy</td><td>Models &gt; <em>Small (English)</em>. More accurate for names and jargon, slower on older PCs.</td></tr>
+      <tr><td>Keep fillers as spoken</td><td>Settings &gt; Text insertion &gt; Remove fillers and stutters</td></tr>
+      <tr><td>Apps that block paste</td><td>Settings &gt; Text insertion &gt; Method &gt; Typing</td></tr>
+      <tr><td>Start with Windows</td><td>Settings &gt; General &gt; Launch at Windows sign-in</td></tr>
+      <tr><td>History and privacy</td><td>Settings &gt; Privacy (turn history off, clear transcripts)</td></tr>
+    </table>
+  </div>
+
+  <h2>Good to know</h2>
+  <ul>
+    <li>Your clipboard is used briefly to paste the text and is then put back.</li>
+    <li>If you switch to another window before the text is ready, Stilleto does not type it anywhere. Open Stilleto and use <strong>Insert</strong> or <strong>Copy</strong> on the Dictation or History page.</li>
+    <li>Windows does not allow typing into programs running <strong>as administrator</strong>, password fields or the UAC prompt.</li>
+    <li>Transcription starts when you stop recording; live word-by-word typing is not available yet.</li>
+  </ul>
+
+  <h2>Troubleshooting</h2>
+  <div class="card">
+    <table>
+      <tr><td>Nothing happens on the shortcut</td><td>Another app may already use <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd>. Stilleto shows this on the Overview page; choose another shortcut in Settings.</td></tr>
+      <tr><td>"No speech detected"</td><td>Check the microphone in Settings &gt; Audio &gt; Test microphone, and Windows' microphone privacy setting.</td></tr>
+      <tr><td>Text not inserted</td><td>The target may run as administrator, or focus changed. The transcript is kept in Stilleto to copy or insert.</td></tr>
+      <tr><td>"Cannot run on this PC"</td><td>Stilleto needs a processor with AVX2 (Intel 4th generation, AMD Ryzen or newer).</td></tr>
+    </table>
+  </div>
+
+  <h2>Reporting a problem</h2>
+  <p>Open <strong>Help &amp; About &gt; Open log</strong> and include <code>stilleto.log</code> with a short description of what you did. The log records events and the target program's name, never your dictated text.</p>
+
+  <h2>Where things are stored</h2>
+  <div class="card">
+    <table>
+      <tr><td>Settings, history, log</td><td><code>%APPDATA%\Stilleto</code></td></tr>
+      <tr><td>Downloaded models</td><td><code>%LOCALAPPDATA%\Stilleto\models</code></td></tr>
+      <tr><td>Installed program</td><td><code>C:\Program Files\Stilleto</code></td></tr>
+    </table>
+  </div>
+  <p>Uninstall from <em>Windows Settings &gt; Apps</em> or the Start Menu. Your settings and history stay in <code>%APPDATA%\Stilleto</code>; delete that folder to remove them too.</p>
+
+  <footer>Stilleto &middot; offline speech recognition by whisper.cpp &middot; built with JUCE</footer>
+</main>
+</body>
+</html>

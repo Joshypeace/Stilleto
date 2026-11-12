@@ -22,6 +22,17 @@ public:
 
     void initialise (const juce::String& commandLine) override
     {
+        // The speech engine (ggml) is compiled for AVX2. Without it the first inference would crash
+        // with an illegal-instruction fault, so explain instead of failing silently on old CPUs.
+        if (! juce::SystemStats::hasAVX2())
+        {
+            juce::NativeMessageBox::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Stilleto cannot run on this PC",
+                "Stilleto's offline speech engine needs a processor with AVX2 support "
+                "(Intel 4th generation / AMD Ryzen or newer). This processor does not provide it.",
+                nullptr, juce::ModalCallbackFunction::create ([] (int) { juce::JUCEApplication::quit(); }));
+            return;
+        }
+
         logger.reset (juce::FileLogger::createDefaultAppLogger ("Stilleto", "stilleto.log",
                                                                 "Stilleto " + getApplicationVersion(), 512 * 1024));
         juce::Logger::setCurrentLogger (logger.get());

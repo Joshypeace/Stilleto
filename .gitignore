@@ -18,3 +18,6 @@ CMakeUserPresets.json
 # OS
 Thumbs.db
 desktop.ini
+
+# Release output (scripts/Build-Release.ps1)
+/dist/
