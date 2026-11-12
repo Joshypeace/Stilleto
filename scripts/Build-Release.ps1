@@ -36,8 +36,10 @@ $buildDir = Join-Path $root "out\build\$Preset"
 $exe = Join-Path $buildDir 'Stilleto_artefacts\Release\Stilleto.exe'
 
 if (-not $SkipBuild) {
-    Step "Configuring ($Preset) with test hooks OFF"
-    cmake --preset $Preset -DSTILLETO_TEST_HOOKS=OFF
+    Step "Configuring ($Preset) for distribution"
+    # Force the distributable configuration: no test hook, portable AVX2 baseline (never GGML_NATIVE,
+    # which could emit AVX-512 the startup CPU check does not test), no Vulkan runtime dependency.
+    cmake --preset $Preset -DSTILLETO_TEST_HOOKS=OFF -DSTILLETO_NATIVE_CPU=OFF -DSTILLETO_GPU_VULKAN=OFF
     if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
 
     Step 'Building Release'
