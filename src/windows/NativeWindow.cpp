@@ -2,11 +2,8 @@
 
 #include <windows.h>
 #include <dwmapi.h>
+#include <immintrin.h>
 #include <intrin.h>
-
-#ifndef PF_AVX2_INSTRUCTIONS_AVAILABLE
- #define PF_AVX2_INSTRUCTIONS_AVAILABLE 40
-#endif
 
 namespace stilleto::native
 {
@@ -94,20 +91,27 @@ std::wstring launchAtStartupCommand (const std::wstring& valueName)
 
 bool cpuSupportsSpeechEngine()
 {
-    // IsProcessorFeaturePresent(PF_AVX2...) also requires the OS to have enabled AVX state (XSAVE),
-    // which a bare CPUID check misses (e.g. some VMs).
-    if (! IsProcessorFeaturePresent (PF_AVX2_INSTRUCTIONS_AVAILABLE))
+    // CPUID + XGETBV rather than IsProcessorFeaturePresent(PF_AVX2...), which older Windows 10
+    // kernels do not report and would wrongly refuse capable machines.
+    int r[4] {};
+    __cpuid (r, 0);
+    const int maxLeaf = r[0];
+
+    __cpuid (r, 1);
+    const bool osxsave = (r[2] & (1 << 27)) != 0;
+    const bool avx     = (r[2] & (1 << 28)) != 0;
+    const bool fma     = (r[2] & (1 << 12)) != 0;
+    const bool f16c    = (r[2] & (1 << 29)) != 0;
+
+    // The OS must have enabled SSE and AVX register state (XCR0 bits 1 and 2), e.g. not in some VMs.
+    if (! osxsave || ! avx || (_xgetbv (0) & 0x6) != 0x6 || maxLeaf < 7)
         return false;
 
-    int regs[4] {};
-    __cpuid (regs, 1);
-    const bool fma  = (regs[2] & (1 << 12)) != 0;
-    const bool f16c = (regs[2] & (1 << 29)) != 0;
+    __cpuidex (r, 7, 0);
+    const bool avx2 = (r[1] & (1 << 5)) != 0;
+    const bool bmi2 = (r[1] & (1 << 8)) != 0;
 
-    __cpuidex (regs, 7, 0);
-    const bool bmi2 = (regs[1] & (1 << 8)) != 0;
-
-    return fma && f16c && bmi2;
+    return avx2 && bmi2 && fma && f16c;
 }
 
 bool setLaunchAtStartup (const std::wstring& valueName, bool enabled, const std::wstring& commandLine)
