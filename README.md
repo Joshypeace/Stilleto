@@ -137,14 +137,14 @@ Download or copy one of the release packages produced by `scripts\Build-Release.
 
 | Package | Use it when |
 | --- | --- |
-| `Stilleto-<version>-Setup.msi` | Normal install: Program Files, Start Menu and optional desktop shortcut, Settings > Apps uninstall entry. Needs administrator approval. |
+| `Stilleto-<version>-Setup.msi` | Normal install: Program Files, Start Menu and desktop shortcuts, Settings > Apps uninstall entry. Needs administrator approval. For no desktop shortcut: `msiexec /i Stilleto-<version>-Setup.msi INSTALLDESKTOPSHORTCUT=0`. |
 | `Stilleto-<version>-Portable.zip` | No install or admin rights: unzip anywhere and run `Stilleto.exe`. Keep the `models` folder next to it. |
 
 Both include the recommended `base.en` model, so dictation works offline immediately, and the
 *Stilleto Quick Start* guide.
 
-**Target PC requirements:** 64-bit Windows 10 or 11, a processor with AVX2 (Intel 4th generation /
-AMD Ryzen or newer; Stilleto shows a clear message otherwise), a microphone, and about 200 MB of disk
+**Target PC requirements:** 64-bit Windows 10 or 11, a processor with AVX2, FMA and BMI2 (Intel 4th
+generation / AMD Ryzen or newer; Stilleto shows a clear message otherwise), a microphone, and about 200 MB of disk
 space. No Visual C++ redistributable or other runtime is needed.
 
 **First launch:** the test builds are not code-signed, so Windows SmartScreen may say "Windows protected
@@ -152,7 +152,9 @@ your PC". Choose *More info > Run anyway*. If dictation hears nothing, check *Wi
 security > Microphone > Let desktop apps access your microphone*.
 
 **Uninstall:** *Settings > Apps > Stilleto*, or the Start Menu shortcut. Settings and history in
-`%APPDATA%\Stilleto` are kept; delete that folder to remove them.
+`%APPDATA%\Stilleto` and downloaded models in `%LOCALAPPDATA%\Stilleto\models` (possibly several
+hundred MB) are kept; delete those folders to remove them. Uninstall also removes the uninstalling
+user's "Launch at Windows sign-in" entry.
 
 ### Building the release packages
 

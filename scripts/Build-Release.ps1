@@ -96,7 +96,7 @@ $msi = Join-Path $dist "Stilleto-$version-Setup.msi"
 if ($LASTEXITCODE -ne 0) { throw 'candle (WiX compile) failed' }
 
 & (Join-Path $WixDir 'light.exe') -nologo -spdb -ext WixUIExtension -ext WixUtilExtension -cultures:en-us `
-    -out $msi $wixobj
+    -sice:ICE61 -sice:ICE63 -out $msi $wixobj   # ICE61: AllowSameVersionUpgrades; ICE63: closing the tray app before RemoveExistingProducts. Both intended.
 if ($LASTEXITCODE -ne 0) { throw 'light (WiX link) failed' }
 
 Step 'Done'

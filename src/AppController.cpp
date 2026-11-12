@@ -57,9 +57,16 @@ void AppController::initialise (bool startHidden)
     registerHotkeyFromSettings();
 
     // Keep the Run entry in sync with the setting (the user may have removed it elsewhere).
-    if (settings.launchAtStartup() != native::isLaunchAtStartupEnabled (L"Stilleto"))
-        native::setLaunchAtStartup (L"Stilleto", settings.launchAtStartup(),
-                                    L"\"" + native::currentExecutablePath() + L"\" --minimized");
+    // Keep the Run entry pointing at *this* executable: a portable copy that moved, or an earlier
+    // dev/portable build, must not keep starting at sign-in instead of the installed app.
+    {
+        const auto expected = L"\"" + native::currentExecutablePath() + L"\" --minimized";
+        const auto stored = native::launchAtStartupCommand (L"Stilleto");
+        if (settings.launchAtStartup() && stored != expected)
+            native::setLaunchAtStartup (L"Stilleto", true, expected);
+        else if (! settings.launchAtStartup() && ! stored.empty())
+            native::setLaunchAtStartup (L"Stilleto", false, {});
+    }
 
     tray = std::make_unique<TrayIcon> (
         TrayIcon::Actions {

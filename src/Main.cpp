@@ -1,6 +1,7 @@
 #include "AppController.h"
 #include "theme/Icons.h"
 #include "theme/StilletoLookAndFeel.h"
+#include "windows/NativeWindow.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -24,11 +25,11 @@ public:
     {
         // The speech engine (ggml) is compiled for AVX2. Without it the first inference would crash
         // with an illegal-instruction fault, so explain instead of failing silently on old CPUs.
-        if (! juce::SystemStats::hasAVX2())
+        if (! native::cpuSupportsSpeechEngine())
         {
             juce::NativeMessageBox::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon, "Stilleto cannot run on this PC",
-                "Stilleto's offline speech engine needs a processor with AVX2 support "
-                "(Intel 4th generation / AMD Ryzen or newer). This processor does not provide it.",
+                "Stilleto's offline speech engine needs a processor with AVX2, FMA and BMI2 support "
+                "(Intel 4th generation / AMD Ryzen or newer) with AVX enabled by Windows. This PC does not provide it.",
                 nullptr, juce::ModalCallbackFunction::create ([] (int) { juce::JUCEApplication::quit(); }));
             return;
         }

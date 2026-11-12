@@ -2,6 +2,11 @@
 
 #include <windows.h>
 #include <dwmapi.h>
+#include <intrin.h>
+
+#ifndef PF_AVX2_INSTRUCTIONS_AVAILABLE
+ #define PF_AVX2_INSTRUCTIONS_AVAILABLE 40
+#endif
 
 namespace stilleto::native
 {
@@ -76,6 +81,33 @@ bool isLaunchAtStartupEnabled (const std::wstring& valueName)
     const bool exists = RegQueryValueExW (key, valueName.c_str(), nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS;
     RegCloseKey (key);
     return exists;
+}
+
+std::wstring launchAtStartupCommand (const std::wstring& valueName)
+{
+    wchar_t buffer[2048] {};
+    DWORD size = sizeof (buffer);
+    if (RegGetValueW (HKEY_CURRENT_USER, runKey, valueName.c_str(), RRF_RT_REG_SZ, nullptr, buffer, &size) != ERROR_SUCCESS)
+        return {};
+    return buffer;
+}
+
+bool cpuSupportsSpeechEngine()
+{
+    // IsProcessorFeaturePresent(PF_AVX2...) also requires the OS to have enabled AVX state (XSAVE),
+    // which a bare CPUID check misses (e.g. some VMs).
+    if (! IsProcessorFeaturePresent (PF_AVX2_INSTRUCTIONS_AVAILABLE))
+        return false;
+
+    int regs[4] {};
+    __cpuid (regs, 1);
+    const bool fma  = (regs[2] & (1 << 12)) != 0;
+    const bool f16c = (regs[2] & (1 << 29)) != 0;
+
+    __cpuidex (regs, 7, 0);
+    const bool bmi2 = (regs[1] & (1 << 8)) != 0;
+
+    return fma && f16c && bmi2;
 }
 
 bool setLaunchAtStartup (const std::wstring& valueName, bool enabled, const std::wstring& commandLine)

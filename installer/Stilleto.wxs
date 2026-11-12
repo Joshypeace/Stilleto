@@ -8,7 +8,8 @@
       - C:\Program Files\Stilleto\Stilleto.exe (static MSVC runtime: no redistributable needed)
       - C:\Program Files\Stilleto\models\ggml-base.en.bin (the recommended model, so dictation works
         offline immediately; Stilleto scans <exe folder>\models in addition to %LOCALAPPDATA%)
-      - Quick Start guide, Start Menu shortcuts, optional desktop shortcut, Settings > Apps entry
+      - Quick Start guide, Start Menu shortcuts, a desktop shortcut (skip with INSTALLDESKTOPSHORTCUT=0),
+        and a Settings > Apps entry
 
     User data (%APPDATA%\Stilleto: settings, history, log; %LOCALAPPDATA%\Stilleto\models) is never
     touched by setup or uninstall.
@@ -28,11 +29,15 @@
              Description="Stilleto $(var.Version) Setup"
              Comments="Stilleto: offline, system-wide voice typing for Windows." />
 
-    <MajorUpgrade DowngradeErrorMessage="A newer version of Stilleto is already installed." Schedule="afterInstallInitialize" />
+    <!-- Same-version upgrades: tester builds all carry the project version, and a rebuilt 1.0.0 must
+         replace the installed 1.0.0 rather than appear as a second entry in Settings > Apps. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Stilleto is already installed."
+                  Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <!-- Windows 10 or later, 64-bit. -->
-    <Condition Message="Stilleto requires 64-bit Windows 10 or later.">
+    <!-- Windows Installer reports Windows 10 and 11 as 6.3 (603) for compatibility, so this cannot
+         tell 8.1 from 10; the message says what the check actually enforces. -->
+    <Condition Message="Stilleto requires 64-bit Windows 8.1 or later (Windows 10 or 11 recommended).">
       <![CDATA[Installed OR (VersionNT64 >= 603)]]>
     </Condition>
 
@@ -42,9 +47,24 @@
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/Joshypeace/Stilleto" />
     <Property Id="ARPCOMMENTS" Value="Offline, system-wide voice typing." />
 
-    <!-- Stilleto keeps running in the tray: close it before files are replaced or removed. -->
-    <util:CloseApplication Id="CloseStilleto" Target="Stilleto.exe" CloseMessage="yes" RebootPrompt="no"
+    <!-- Stilleto keeps running in the tray, and closing its window only hides it. The end-session
+         message makes it quit cleanly (JUCE maps WM_QUERYENDSESSION to systemRequestedQuit, which runs
+         AppController::shutdown); TerminateProcess is the fallback. It is scheduled before the old
+         product or any file is removed, so the exe is never in use when it is replaced. -->
+    <util:CloseApplication Id="CloseStilleto" Target="Stilleto.exe" EndSessionMessage="yes" RebootPrompt="no"
                            TerminateProcess="1" Timeout="5" />
+
+    <!-- Remove the "Launch at Windows sign-in" entry of the uninstalling user, so no dead startup item
+         is left behind. Impersonated so HKCU is the user's, not SYSTEM's; ignored if absent. -->
+    <SetProperty Id="RemoveRunEntry" Sequence="execute" Before="RemoveRunEntry"
+                 Value="&quot;[System64Folder]reg.exe&quot; delete &quot;HKCU\Software\Microsoft\Windows\CurrentVersion\Run&quot; /v Stilleto /f" />
+    <CustomAction Id="RemoveRunEntry" BinaryKey="WixCA" DllEntry="WixQuietExec64" Execute="deferred"
+                  Impersonate="yes" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="WixCloseApplications" Before="RemoveExistingProducts">1</Custom>
+      <Custom Action="RemoveRunEntry" Before="RemoveFiles">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
@@ -94,7 +114,8 @@
       </Component>
     </DirectoryRef>
 
-    <Property Id="INSTALLDESKTOPSHORTCUT" Value="1" />
+    <!-- Desktop shortcut for all users, on by default. Pass INSTALLDESKTOPSHORTCUT=0 to msiexec to skip it. -->
+    <Property Id="INSTALLDESKTOPSHORTCUT" Value="1" Secure="yes" />
 
     <Feature Id="Main" Title="Stilleto" Level="1" Absent="disallow">
       <ComponentRef Id="StilletoExe" />
