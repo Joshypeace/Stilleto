@@ -139,12 +139,13 @@ public:
     ToggleSwitch gpu;
     juce::Array<juce::File> modelFiles;   // combo item id - 1 -> file
 
-    ToggleSwitch autoInsert, trailingSpace, paragraphs, tidy;
+    ToggleSwitch autoInsert, trailingSpace, paragraphs, tidy, disfluencies;
     SegmentedControl method { { "Automatic", "Paste", "Typing" } };
     juce::Slider keystrokeDelay { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 
     ToggleSwitch saveHistory, saveRecordings, recordingIndicator;
     StilletoButton clearHistory { "Clear transcripts", StilletoButton::Style::Danger, Icons::Id::Trash };
+    StilletoButton deleteRecordings { "Delete recordings", StilletoButton::Style::Danger, Icons::Id::Trash };
 
     Content()
     {
@@ -176,12 +177,14 @@ public:
         insertion.addRow ({ "Keystroke delay", "Pause between simulated keystrokes (Typing method). Increase it if characters are dropped.", &keystrokeDelay, 300, 76 });
         insertion.addRow ({ "Add a trailing space", "So consecutive dictations do not run together.", &trailingSpace });
         insertion.addRow ({ "Paragraph per segment", "Keep Whisper's segment breaks as new lines.", &paragraphs });
+        insertion.addRow ({ "Remove fillers and stutters", "Skip \"um\", \"uh\", stammered starts (\"I-I-I\") and accidentally repeated words.", &disfluencies });
         insertion.addRow ({ "Tidy punctuation", "Fix spacing around punctuation and capitalise the first word.", &tidy });
 
         privacy.addRow ({ "Save transcription history", "Keep transcripts in %APPDATA%\\Stilleto so you can search and reuse them.", &saveHistory });
         privacy.addRow ({ "Save raw recordings", "Off by default. When on, each dictation is also saved as a WAV file in %APPDATA%\\Stilleto\\recordings.", &saveRecordings });
         privacy.addRow ({ "Show recording indicator", "Always show a recording indicator, even if the floating widget is set to Never.", &recordingIndicator });
         privacy.addRow ({ "Stored transcripts", "Permanently delete every saved transcript from this PC.", &clearHistory, 190 });
+        privacy.addRow ({ "Saved recordings", "Permanently delete the WAV files kept by \"Save raw recordings\".", &deleteRecordings, 190 });
 
         styleLabel (deviceStatus, Fonts::small(), Colours::textSecondary, juce::Justification::centredRight);
 
@@ -238,6 +241,7 @@ SettingsPage::SettingsPage (AppController& c) : Page (c), content (std::make_uni
     bindToggle (ui.trailingSpace,   [&s] (bool v) { s.setTrailingSpace (v); });
     bindToggle (ui.paragraphs,      [&s] (bool v) { s.setParagraphPerSegment (v); });
     bindToggle (ui.tidy,            [&s] (bool v) { s.setTidyPunctuation (v); });
+    bindToggle (ui.disfluencies,    [&s] (bool v) { s.setRemoveDisfluencies (v); });
     bindToggle (ui.saveRecordings,  [&s] (bool v) { s.setSaveRecordings (v); });
     bindToggle (ui.recordingIndicator, [&s] (bool v) { s.setRecordingIndicator (v); });
 
@@ -313,6 +317,28 @@ SettingsPage::SettingsPage (AppController& c) : Page (c), content (std::make_uni
     };
 
     ui.clearHistory.onClick = [this] { confirmClearHistory(); };
+    ui.deleteRecordings.onClick = [this]
+    {
+        const int count = controller.savedRecordingCount();
+        juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                          .withIconType (juce::MessageBoxIconType::WarningIcon)
+                                          .withTitle ("Delete saved recordings?")
+                                          .withMessage ("Delete all " + juce::String (count) + " recordings from "
+                                                        + AppController::recordingsDirectory().getFullPathName() + "? This cannot be undone.")
+                                          .withButton ("Delete")
+                                          .withButton ("Keep them")
+                                          .withAssociatedComponent (this),
+                                      [this, token = alive] (int r)
+                                      {
+                                          if (! token->load() || r != 1) return;
+                                          if (! controller.deleteSavedRecordings())
+                                              juce::AlertWindow::showAsync (juce::MessageBoxOptions().withIconType (juce::MessageBoxIconType::WarningIcon)
+                                                                                .withTitle ("Some recordings were not deleted")
+                                                                                .withMessage ("A file may be open in another application.")
+                                                                                .withButton ("OK"), nullptr);
+                                          loadValues();
+                                      });
+    };
 
     controller.addListener (this);
     controller.getSettings().addListener (this);
@@ -410,11 +436,13 @@ void SettingsPage::loadValues()
     ui.trailingSpace.setToggleState (s.trailingSpace(), juce::dontSendNotification);
     ui.paragraphs.setToggleState (s.paragraphPerSegment(), juce::dontSendNotification);
     ui.tidy.setToggleState (s.tidyPunctuation(), juce::dontSendNotification);
+    ui.disfluencies.setToggleState (s.removeDisfluencies(), juce::dontSendNotification);
 
     ui.saveHistory.setToggleState (s.saveHistory(), juce::dontSendNotification);
     ui.saveRecordings.setToggleState (s.saveRecordings(), juce::dontSendNotification);
     ui.recordingIndicator.setToggleState (s.recordingIndicator(), juce::dontSendNotification);
     ui.clearHistory.setEnabled (! controller.getHistory().entries().empty());
+    ui.deleteRecordings.setEnabled (controller.savedRecordingCount() > 0);
 }
 
 void SettingsPage::hotkeyStatusChanged()

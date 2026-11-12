@@ -31,7 +31,14 @@ bool HistoryManager::load (juce::String& error)
 
     if (list == nullptr)
     {
-        error = "The transcription history file could not be read and was left untouched: " + storage.getFullPathName();
+        // Move the unreadable file aside before anything can overwrite it.
+        const auto backup = storage.getSiblingFile ("history.unreadable-" + juce::Time::getCurrentTime().formatted ("%Y%m%d-%H%M%S") + ".json");
+        const bool moved = storage.moveFileTo (backup);
+        error = moved ? "The transcription history file could not be read. It was kept as " + backup.getFullPathName()
+                      : "The transcription history file could not be read: " + storage.getFullPathName();
+        if (! moved)
+            writesBlocked = true;   // never overwrite a file we could not preserve (survives toggling the setting)
+        loadProblem = error;
         return false;
     }
 
@@ -61,10 +68,15 @@ void HistoryManager::setPersistenceEnabled (bool enabled)
     persistenceEnabled = enabled;
 }
 
+bool HistoryManager::isPersistenceEnabled() const noexcept
+{
+    return persistenceEnabled && ! writesBlocked;
+}
+
 void HistoryManager::add (HistoryEntry entry)
 {
     // With history off nothing is kept, not even in memory, so the list always mirrors the file.
-    if (! persistenceEnabled)
+    if (! isPersistenceEnabled())
         return;
 
     if (entry.id.isEmpty())
@@ -86,6 +98,12 @@ bool HistoryManager::remove (const juce::String& id)
 
     items.erase (it);
 
+    if (writesBlocked)
+    {
+        notify();
+        return true;
+    }
+
     // Deleting must remove the stored copy even if persistence was switched off afterwards.
     {
         std::lock_guard lock (writeMutex);
@@ -101,6 +119,11 @@ bool HistoryManager::remove (const juce::String& id)
 void HistoryManager::clear()
 {
     items.clear();
+    if (writesBlocked)
+    {
+        notify();
+        return;
+    }
     {
         std::lock_guard lock (writeMutex);
         pendingJson.reset();
@@ -199,6 +222,8 @@ juce::String HistoryManager::serialise() const
 
 void HistoryManager::scheduleWrite()
 {
+    if (writesBlocked)
+        return;
     {
         std::lock_guard lock (writeMutex);
         pendingJson = serialise();

@@ -44,7 +44,10 @@ public:
     bool load (juce::String& error);
 
     void setPersistenceEnabled (bool enabled);
-    [[nodiscard]] bool isPersistenceEnabled() const noexcept { return persistenceEnabled; }
+    [[nodiscard]] bool isPersistenceEnabled() const noexcept;
+
+    /** Set when the history file could not be read at startup (shown on the History page). */
+    [[nodiscard]] const juce::String& loadError() const noexcept { return loadProblem; }
 
     void add (HistoryEntry entry);
     bool remove (const juce::String& id);
@@ -80,6 +83,8 @@ private:
     juce::File storage;
     std::vector<HistoryEntry> items;
     bool persistenceEnabled = true;
+    bool writesBlocked = false;
+    juce::String loadProblem;
     juce::ListenerList<Listener> listeners;
 
     mutable std::mutex writeMutex;

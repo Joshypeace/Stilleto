@@ -32,7 +32,12 @@ OverviewPage::OverviewPage (AppController& c) : Page (c)
     {
         const auto& entries = controller.getHistory().entries();
         const auto text = ! entries.empty() ? entries.front().text : controller.session().transcript;
-        controller.copyToClipboard (text);
+        const bool ok = controller.copyToClipboard (text);
+        copyFeedback = ok ? "Copied to the clipboard" : "The clipboard is in use by another application";
+        copyFeedbackIsError = ! ok;
+        copyFeedbackUntil = juce::Time::getMillisecondCounter() + 2500;
+        repaint();
+        juce::Timer::callAfterDelay (2600, [safe = juce::Component::SafePointer<OverviewPage> (this)] { if (safe) safe->repaint(); });
     };
     insertButton.onClick = [this]
     {
@@ -117,7 +122,7 @@ void OverviewPage::refresh()
         minutes.setValue (history.totalSeconds() / 60.0, [] (double v)
         {
             return v < 1.0 ? juce::String (juce::roundToInt (v * 60.0)) + " s" : juce::String (v, 1) + " min";
-        }, "Recorded audio, never stored");
+        }, controller.getSettings().saveRecordings() ? "Recordings are being saved (Settings > Privacy)" : "Audio is never stored");
     }
     else
     {
@@ -257,7 +262,13 @@ void OverviewPage::paintOverChildren (juce::Graphics& g)
             g.setFont (Fonts::body());
             g.drawFittedText (text, r.reduced (0, 4), juce::Justification::topLeft, juce::jmax (1, r.getHeight() / 20), 1.0f);
 
-            if (hasEntry)
+            if (copyFeedback.isNotEmpty() && juce::Time::getMillisecondCounter() < copyFeedbackUntil)
+            {
+                g.setColour (copyFeedbackIsError ? Colours::error : Colours::success);
+                g.setFont (Fonts::small());
+                g.drawText (copyFeedback, meta, juce::Justification::centredLeft, true);
+            }
+            else if (hasEntry)
             {
                 const auto& e = entries.front();
                 g.setColour (Colours::textMuted);

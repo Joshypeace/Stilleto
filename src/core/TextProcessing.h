@@ -11,7 +11,19 @@ struct CleanupOptions
 {
     bool tidyPunctuation = true;      // fix spacing around punctuation, capitalise sentence starts
     bool paragraphPerSegment = false; // keep segment breaks as newlines instead of joining with spaces
+    bool removeDisfluencies = true;   // drop fillers (um, uh), stutters (I-I-I) and repeated words
 };
+
+/** Removes speech disfluencies so stammering or false starts are not typed:
+    - filler sounds: "um", "uh", "erm", "hmm", ... (with their commas)
+    - hyphenated stutters: "I-I-I" -> "I", "w-what" -> "what", "b-b-but" -> "but"
+    - repeated words: "the the" -> "the", "I, I, I think" -> "I think"
+    Deliberately conservative, because deleting a word the user meant is worse than leaving a
+    stutter in: only a short list of stammer words is de-duplicated, and only without a sentence
+    break between them; other repeats ("you, you need", "log in in", "No, no, no!", "7 7 7"),
+    reduplications ("so-so"), compounds ("D-Day", "re-read") and numbers ("1-10") are kept.
+    English rules: callers apply it only to English transcripts. */
+[[nodiscard]] std::string removeDisfluencies (std::string_view text);
 
 /** Removes whisper's non-speech annotations such as "[BLANK_AUDIO]", "(music)" or "[ Silence ]". */
 [[nodiscard]] std::string stripNonSpeechAnnotations (std::string_view text);

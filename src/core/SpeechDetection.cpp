@@ -55,8 +55,8 @@ bool isCommonHallucination (std::string_view text)
     for (const char c : text)
     {
         const auto u = static_cast<unsigned char> (c);
-        if (std::isalnum (u) || c == ' ')
-            normalised += static_cast<char> (std::tolower (u));
+        if (u >= 0x80 || std::isalnum (u) || c == ' ')   // keep non-ASCII (UTF-8) bytes intact
+            normalised += u >= 0x80 ? c : static_cast<char> (std::tolower (u));
     }
 
     while (! normalised.empty() && normalised.front() == ' ') normalised.erase (normalised.begin());
@@ -67,7 +67,8 @@ bool isCommonHallucination (std::string_view text)
         "thank you for watching", "bye", "okay", "so", "the end", "subtitles by the amaraorg community"
     };
 
-    return normalised.empty() || std::find (phrases.begin(), phrases.end(), normalised) != phrases.end();
+    // Empty text is not a hallucination: the caller already treats an empty transcript separately.
+    return ! normalised.empty() && std::find (phrases.begin(), phrases.end(), normalised) != phrases.end();
 }
 
 } // namespace stilleto

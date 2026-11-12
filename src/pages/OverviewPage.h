@@ -44,6 +44,9 @@ private:
     ui::IconButton copyButton { ui::Icons::Id::Copy, "Copy transcript" };
     ui::IconButton insertButton { ui::Icons::Id::Insert, "Insert into the last application" };
     juce::Rectangle<int> recentTextArea, activityArea;
+    juce::String copyFeedback;
+    bool copyFeedbackIsError = false;
+    juce::uint32 copyFeedbackUntil = 0;
 };
 
 } // namespace stilleto

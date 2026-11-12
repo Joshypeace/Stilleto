@@ -132,6 +132,8 @@ bool SettingsManager::paragraphPerSegment() const           { return getBool (Ke
 void SettingsManager::setParagraphPerSegment (bool v)       { setValue (Keys::paragraphPerSegment, v); }
 bool SettingsManager::tidyPunctuation() const               { return getBool (Keys::tidyPunctuation, true); }
 void SettingsManager::setTidyPunctuation (bool v)           { setValue (Keys::tidyPunctuation, v); }
+bool SettingsManager::removeDisfluencies() const            { return getBool (Keys::removeDisfluencies, true); }
+void SettingsManager::setRemoveDisfluencies (bool v)        { setValue (Keys::removeDisfluencies, v); }
 
 // Privacy
 bool SettingsManager::saveHistory() const                   { return getBool (Keys::saveHistory, true); }

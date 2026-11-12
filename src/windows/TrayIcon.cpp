@@ -61,8 +61,7 @@ void TrayIcon::showMenu()
     menu.addSeparator();
     menu.addItem ("Quit Stilleto", [fn = actions.quit] { if (fn) fn(); });
 
-    // Windows only dismisses a tray menu correctly when the owning process is in the foreground.
-    juce::Process::makeForegroundProcess();
+    // JUCE's tray window takes the foreground on click, so the menu dismisses normally.
     menu.showMenuAsync (juce::PopupMenu::Options()
                             .withTargetScreenArea (juce::Rectangle<int> {}.withPosition (juce::Desktop::getMousePosition()).withSize (1, 1))
                             .withStandardItemHeight (30));

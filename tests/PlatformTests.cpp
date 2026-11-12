@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -56,6 +57,24 @@ bool forceForeground (HWND hwnd)
 {
     for (int attempt = 0; attempt < 10; ++attempt)
     {
+        // Fallback once key-based activation has failed (e.g. the taskbar holds the foreground
+        // lock): a click on the test window's own title bar activates it like a real click.
+        if (attempt == 3)
+        {
+            RECT r {};
+            GetWindowRect (hwnd, &r);
+            SetCursorPos ((r.left + r.right) / 2, r.top + 12);
+            std::this_thread::sleep_for (100ms);
+            INPUT click[2] {};
+            click[0].type = click[1].type = INPUT_MOUSE;
+            click[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+            click[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+            SendInput (2, click, sizeof (INPUT));
+            std::this_thread::sleep_for (400ms);
+            if (GetForegroundWindow() == hwnd)
+                return true;
+        }
+
         INPUT unassigned[2] {};
         unassigned[0].type = unassigned[1].type = INPUT_KEYBOARD;
         unassigned[0].ki.wVk = unassigned[1].ki.wVk = 0xE8;
@@ -353,17 +372,65 @@ TEST_CASE ("insert: long text uses the clipboard and restores previous contents"
     CHECK (r.clipboardRestored);
     CHECK_EQ (notepad.text(), longText);
     CHECK_EQ (clipboardText(), original);
-    notepad.clear();
-    std::this_thread::sleep_for (1500ms);   // Notepad re-lays out 2000 characters; let it go idle
+}
 
-    // Forced Unicode keystrokes never touch the clipboard.
+TEST_CASE ("insert: forced typing never touches the clipboard")
+{
+    // A fresh editor: right after a large paste Notepad is busy and even the test's own Ctrl+A can
+    // arrive as plain text, which would make this check measure the harness instead of the inserter.
+    NotepadSession notepad ("typing");
+    REQUIRE (notepad.ok());
+
+    const std::string original = "Clipboard contents that belong to the user";
+    REQUIRE (TextInserter::copyToClipboard (text::utf8ToUtf16 (original)));
+
+    const auto target = TextInserter::captureForeground();
+    REQUIRE (target.isValid());
+
+    InsertOptions options;
     options.method = InsertMethod::UnicodeKeys;
-    const std::string medium = longText.substr (0, 60);
-    const auto r2 = insertAndSettle (medium, target, options);
-    CHECK (r2.succeeded());
-    CHECK (r2.methodUsed == InsertMethod::UnicodeKeys);
+    const std::string medium = "Stilleto types this short phrase key by key.";
+    const auto r = insertAndSettle (medium, target, options);
+    CHECK (r.succeeded());
+    CHECK (r.methodUsed == InsertMethod::UnicodeKeys);
     CHECK_EQ (notepad.text(), medium);
     CHECK_EQ (clipboardText(), original);
+}
+
+TEST_CASE ("insert: a clipboard with many formats is restored and the user is told about losses")
+{
+    NotepadSession notepad ("manyformats");
+    REQUIRE (notepad.ok());
+
+    // Text plus 20 private formats (> 16): only priority formats are captured, so a notice is due.
+    const std::string original = "Rich clipboard from another application";
+    REQUIRE (OpenClipboard (nullptr));
+    EmptyClipboard();
+    const auto wide = text::utf8ToUtf16 (original) + u'\0';
+    auto put = [] (UINT format, const void* data, size_t size)
+    {
+        HGLOBAL m = GlobalAlloc (GMEM_MOVEABLE, size);
+        std::memcpy (GlobalLock (m), data, size);
+        GlobalUnlock (m);
+        SetClipboardData (format, m);
+    };
+    put (CF_UNICODETEXT, wide.data(), wide.size() * sizeof (char16_t));
+    for (int i = 0; i < 20; ++i)
+    {
+        const auto name = L"StilletoTestFormat" + std::to_wstring (i);
+        const int value = i;
+        put (RegisterClipboardFormatW (name.c_str()), &value, sizeof (value));
+    }
+    CloseClipboard();
+
+    const auto target = TextInserter::captureForeground();
+    REQUIRE (target.isValid());
+    const auto r = insertAndSettle ("Pasted while the clipboard held many formats.", target);
+    CHECK (r.succeeded());
+    CHECK (! r.clipboardRestored);
+    CHECK (! r.clipboardNote.empty());
+    CHECK_EQ (clipboardText(), original);   // the text itself is always restored
+    notepad.clear();
 }
 
 TEST_CASE ("insert: closed targets and own windows are refused")

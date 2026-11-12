@@ -20,6 +20,10 @@ Built with C++20, JUCE 9 and whisper.cpp v1.9.5.
 - **Text insertion** into the window that was active when you pressed the shortcut, via clipboard paste
   (your clipboard is snapshotted and restored, and the transient text is excluded from clipboard
   history) or paced Unicode keystrokes. Never steals focus.
+- **Clean transcripts for natural speech**: filler sounds ("um", "uh", "erm"), stammered starts
+  ("I-I-I", "w-what") and accidentally repeated words ("the the") are removed before typing, while
+  intentional repeats ("that that", "had had") and real hyphenated words are kept. This is on by
+  default and can be changed in *Settings > Text insertion > Remove fillers and stutters*.
 - **Floating widget**: a non-activating, always-on-top pill with live waveform, timer and status.
 - **Dashboard**: overview with real usage metrics, dictation page, searchable history, model manager
   with verified downloads, settings and help.
@@ -106,6 +110,7 @@ together with a model, or let it download one.
 | `STILLETO_JUCE_DIR` | auto | Path to JUCE |
 | `STILLETO_BUILD_TESTS` | `ON` | Build the test executables |
 | `STILLETO_GPU_VULKAN` | `OFF` | Build whisper.cpp with Vulkan (requires the Vulkan SDK) |
+| `STILLETO_TEST_HOOKS` | `OFF` | Compile the `STILLETO_TEST_AUDIO` end-to-end hook (test builds only) |
 | `STILLETO_NATIVE_CPU` | `OFF` | Optimise for this machine's CPU only (not for distribution); the default targets AVX2 |
 
 ## Running
@@ -131,7 +136,8 @@ Data locations:
 ```powershell
 ctest --preset vs2026-release               # unit + whisper integration tests
 out\build\vs2026\tests\Release\StilletoPlatformTests.exe   # hotkey + Notepad insertion (drives the desktop)
-powershell -ExecutionPolicy Bypass -File tests\e2e_notepad.ps1   # full app end to end
+# full app end to end (build it with: cmake --preset vs2026-e2e; cmake --build --preset vs2026-e2e)
+powershell -ExecutionPolicy Bypass -File tests\e2e_notepad.ps1
 ```
 
 See [docs/TESTING.md](docs/TESTING.md) for what each suite covers and the manual checklist.
@@ -190,5 +196,6 @@ from anywhere. Transitions are validated (`core/DictationState.cpp`). A shortcut
 
 - `Stilleto.exe --snapshot <dir>` renders every page off-screen to PNG and exits.
 - `Stilleto.exe --export-icon <file.png>` regenerates `assets/StilletoIcon.png` from the vector mark.
-- `STILLETO_TEST_AUDIO=<file.wav>`: for automated end-to-end tests only. After a real microphone
+- `STILLETO_TEST_AUDIO=<file.wav>`: for automated end-to-end tests only, and only in builds
+  configured with `-DSTILLETO_TEST_HOOKS=ON`. After a real microphone
   capture, the recording is replaced by this WAV file. Never set it in normal use.

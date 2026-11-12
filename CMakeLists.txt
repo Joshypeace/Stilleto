@@ -17,6 +17,7 @@ endif()
 option(STILLETO_BUILD_APP   "Build the Stilleto JUCE application" ON)
 option(STILLETO_BUILD_TESTS "Build the Stilleto test executables" ON)
 option(STILLETO_GPU_VULKAN  "Build whisper.cpp with the Vulkan backend (requires the Vulkan SDK)" OFF)
+option(STILLETO_TEST_HOOKS  "Compile the STILLETO_TEST_AUDIO end-to-end test hook into the app (never for releases)" OFF)
 option(STILLETO_NATIVE_CPU  "Optimise ggml for this machine's CPU only (not suitable for distribution)" OFF)
 
 #-----------------------------------------------------------------------------------------------
@@ -187,6 +188,7 @@ target_compile_definitions(Stilleto PRIVATE
     JUCE_USE_CURL=0
     JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_USE_WINRT_MIDI=0
+    STILLETO_ENABLE_TEST_HOOKS=$<BOOL:${STILLETO_TEST_HOOKS}>
     JUCE_APPLICATION_NAME_STRING="$<TARGET_PROPERTY:Stilleto,JUCE_PRODUCT_NAME>"
     JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:Stilleto,JUCE_VERSION>")
 
