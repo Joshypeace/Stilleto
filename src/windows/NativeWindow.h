@@ -23,8 +23,13 @@ void bringToForeground (void* hwnd);
 
 /** Launch at sign-in via HKCU\...\Run. */
 [[nodiscard]] bool isLaunchAtStartupEnabled (const std::wstring& valueName);
+[[nodiscard]] std::wstring launchAtStartupCommand (const std::wstring& valueName);   // empty if absent
 bool setLaunchAtStartup (const std::wstring& valueName, bool enabled, const std::wstring& commandLine);
 
 [[nodiscard]] std::wstring currentExecutablePath();
+
+/** True if the CPU and OS support everything the speech engine (ggml-cpu) is compiled for:
+    AVX2 with OS-enabled YMM state, FMA, F16C and BMI2. */
+[[nodiscard]] bool cpuSupportsSpeechEngine();
 
 } // namespace stilleto::native
